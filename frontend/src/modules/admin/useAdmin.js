@@ -16,6 +16,19 @@ export function useAdmin() {
   })
   const llmModels = ref([])
   const activeModelId = ref(null)
+  
+  // 新增状态
+  const tools = ref([])
+  const sessions = ref([])
+  const skills = ref([])
+  const systemConfig = ref({
+    site_name: 'AI Chat Hub',
+    max_context_length: 10,
+    default_temperature: 0.7,
+    max_tokens: 2048,
+    enable_streaming: true,
+    session_expire_days: 7
+  })
 
   // 弹窗状态
   const showRoleDialog = ref(false)
@@ -24,10 +37,14 @@ export function useAdmin() {
   const showEditDialog = ref(false)
   const showAddModelDialog = ref(false)
   const showEditModelDialog = ref(false)
+  const showAddSkillDialog = ref(false)
+  const showEditSkillDialog = ref(false)
+  const showTestSkillDialog = ref(false)
 
   // 选中项
   const selectedUser = ref(null)
   const selectedModel = ref(null)
+  const selectedSkill = ref(null)
 
   // 表单数据
   const newRole = ref('user')
@@ -61,6 +78,28 @@ export function useAdmin() {
     max_tokens: 2048,
     description: ''
   })
+  
+  // 技能表单数据
+  const newSkill = ref({
+    name: '',
+    description: '',
+    category: 'general',
+    parameters: [],
+    system_prompt: '',
+    user_prompt: '',
+    script: ''
+  })
+  const editSkillForm = ref({
+    name: '',
+    description: '',
+    category: 'general',
+    parameters: [],
+    system_prompt: '',
+    user_prompt: '',
+    script: ''
+  })
+  const testSkillParams = ref({})
+  const testSkillResult = ref(null)
 
   // 消息提示
   const message = ref({
@@ -196,6 +235,68 @@ export function useAdmin() {
     } catch (error) {
       if (error.response && await handleUnauthorized(error.response, onLogout)) return
       console.error('加载模型配置失败:', error)
+    }
+  }
+
+  async function loadTools(onLogout) {
+    try {
+      const data = await adminApi.getTools()
+      tools.value = data
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) return
+      console.error('加载工具列表失败:', error)
+    }
+  }
+
+  async function loadSessions(onLogout) {
+    try {
+      const data = await adminApi.getSessions()
+      sessions.value = data
+      stats.value.total_sessions = data.length
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) return
+      console.error('加载会话列表失败:', error)
+    }
+  }
+
+  async function loadSystemConfig(onLogout) {
+    try {
+      const data = await adminApi.getSystemConfig()
+      systemConfig.value = { ...systemConfig.value, ...data }
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) return
+      console.error('加载系统配置失败:', error)
+    }
+  }
+
+  async function loadSkills(onLogout) {
+    try {
+      const data = await adminApi.getSkills()
+      skills.value = data
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) return
+      console.error('加载技能列表失败:', error)
+    }
+  }
+
+  async function deleteSession(sessionId, onLogout) {
+    if (!confirm('确定要删除此会话吗？')) return
+
+    try {
+      await adminApi.deleteSession(sessionId)
+      showMessage('会话删除成功')
+      await loadSessions(onLogout)
+    } catch (error) {
+      showMessage(error.message || '删除失败', 'error')
+    }
+  }
+
+  async function saveSystemConfig(onLogout) {
+    try {
+      await adminApi.updateSystemConfig(systemConfig.value)
+      showMessage('系统配置保存成功')
+    } catch (error) {
+      showMessage(error.message || '保存失败', 'error')
     }
   }
 
@@ -396,6 +497,117 @@ export function useAdmin() {
     }
   }
 
+  // 技能相关方法
+  function showAddSkillModal() {
+    newSkill.value = {
+      name: '',
+      description: '',
+      category: 'general',
+      parameters: [{ name: '', type: 'string', description: '', required: true }],
+      system_prompt: '',
+      user_prompt: '',
+      script: ''
+    }
+    showAddSkillDialog.value = true
+  }
+
+  function showEditSkillModal(skill) {
+    selectedSkill.value = skill
+    editSkillForm.value = {
+      name: skill.name,
+      description: skill.description || '',
+      category: skill.category || 'general',
+      parameters: skill.parameters || [{ name: '', type: 'string', description: '', required: true }],
+      system_prompt: skill.system_prompt || '',
+      user_prompt: skill.user_prompt || '',
+      script: skill.script || ''
+    }
+    showEditSkillDialog.value = true
+  }
+
+  function showTestSkillModal(skill) {
+    selectedSkill.value = skill
+    testSkillParams.value = {}
+    testSkillResult.value = null
+    if (skill.parameters) {
+      skill.parameters.forEach(param => {
+        testSkillParams.value[param.name] = param.default || ''
+      })
+    }
+    showTestSkillDialog.value = true
+  }
+
+  function addSkillParam(form) {
+    form.parameters.push({ name: '', type: 'string', description: '', required: true })
+  }
+
+  function removeSkillParam(form, index) {
+    if (form.parameters.length > 1) {
+      form.parameters.splice(index, 1)
+    }
+  }
+
+  async function addSkill(onLogout) {
+    if (!newSkill.value.name || !newSkill.value.description) {
+      showMessage('请填写技能名称和描述', 'error')
+      return
+    }
+
+    try {
+      await adminApi.createSkill(newSkill.value)
+      showMessage('技能创建成功')
+      showAddSkillDialog.value = false
+      await loadSkills(onLogout)
+    } catch (error) {
+      showMessage(error.message || '创建失败', 'error')
+    }
+  }
+
+  async function updateSkill(onLogout) {
+    try {
+      await adminApi.updateSkill(selectedSkill.value.name, editSkillForm.value)
+      showMessage('技能更新成功')
+      showEditSkillDialog.value = false
+      await loadSkills(onLogout)
+    } catch (error) {
+      showMessage(error.message || '更新失败', 'error')
+    }
+  }
+
+  async function deleteSkill(skill, onLogout) {
+    if (!confirm(`确定要删除技能 "${skill.name}" 吗？此操作不可恢复！`)) return
+
+    try {
+      await adminApi.deleteSkill(skill.name)
+      showMessage('删除成功')
+      await loadSkills(onLogout)
+    } catch (error) {
+      showMessage(error.message || '删除失败', 'error')
+    }
+  }
+
+  async function toggleSkill(skill, onLogout) {
+    const action = skill.enabled ? '禁用' : '启用'
+    if (!confirm(`确定要${action}技能 "${skill.name}" 吗？`)) return
+
+    try {
+      await adminApi.toggleSkill(skill.name)
+      showMessage(`${action}成功`)
+      await loadSkills(onLogout)
+    } catch (error) {
+      showMessage(error.message || '操作失败', 'error')
+    }
+  }
+
+  async function testSkill(onLogout) {
+    try {
+      const result = await adminApi.testSkill(selectedSkill.value.name, testSkillParams.value)
+      testSkillResult.value = result
+    } catch (error) {
+      showMessage(error.message || '测试失败', 'error')
+    }
+  }
+
   return {
     // 状态
     currentTab,
@@ -405,20 +617,32 @@ export function useAdmin() {
     stats,
     llmModels,
     activeModelId,
+    tools,
+    sessions,
+    skills,
+    systemConfig,
     showRoleDialog,
     showResetDialog,
     showAddUserDialog,
     showEditDialog,
     showAddModelDialog,
     showEditModelDialog,
+    showAddSkillDialog,
+    showEditSkillDialog,
+    showTestSkillDialog,
     selectedUser,
     selectedModel,
+    selectedSkill,
     newRole,
     newPassword,
     newUser,
     editForm,
     newModel,
     editModelForm,
+    newSkill,
+    editSkillForm,
+    testSkillParams,
+    testSkillResult,
     message,
     // 计算属性
     isSuperAdmin,
@@ -435,12 +659,21 @@ export function useAdmin() {
     loadDashboard,
     loadUsers,
     loadLLMModels,
+    loadTools,
+    loadSessions,
+    loadSystemConfig,
+    loadSkills,
     showRoleModal,
     showAddUserModal,
     showEditModal,
     showAddModelModal,
     showEditModelModal,
     showResetModal,
+    showAddSkillModal,
+    showEditSkillModal,
+    showTestSkillModal,
+    addSkillParam,
+    removeSkillParam,
     updateRole,
     toggleUser,
     resetPassword,
@@ -450,6 +683,13 @@ export function useAdmin() {
     addModel,
     updateModel,
     activateModel,
-    deleteModel
+    deleteModel,
+    deleteSession,
+    saveSystemConfig,
+    addSkill,
+    updateSkill,
+    deleteSkill,
+    toggleSkill,
+    testSkill
   }
 }

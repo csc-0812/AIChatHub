@@ -3,10 +3,16 @@
 提供用户管理和系统配置API
 """
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from modules.auth.models import User, UserRole
 from modules.auth.routers import get_current_admin, get_current_super_admin
+from modules.chat.session_manager import session_manager
+from tools import get_all_tools
+from skills import (
+    get_all_skills, get_skill, create_skill, update_skill,
+    delete_skill, toggle_skill, execute_skill, load_skills_from_directory
+)
 from .models import (
     UserListResponse, UpdateUserRoleRequest, UpdateUserRoleResponse,
     ToggleUserResponse, ResetPasswordRequest, ResetPasswordResponse,
@@ -253,5 +259,199 @@ async def admin_dashboard(
         }
     }
 
+
+@router.get("/tools", response_model=List[Dict[str, str]])
+async def get_tools(
+    current_user: User = Depends(get_current_admin)
+):
+    """获取可用工具列表（管理员权限）"""
+    tools = get_all_tools()
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description
+        }
+        for tool in tools
+    ]
+
+
+@router.get("/sessions", response_model=List[Dict[str, Any]])
+async def get_sessions(
+    current_user: User = Depends(get_current_admin)
+):
+    """获取所有会话列表（管理员权限）"""
+    sessions = session_manager.get_all_sessions()
+    return sessions
+
+
+@router.delete("/sessions/{session_id}", response_model=dict)
+async def delete_session(
+    session_id: str,
+    current_user: User = Depends(get_current_admin)
+):
+    """删除指定会话（管理员权限）"""
+    success = session_manager.delete_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    return {"message": "会话删除成功"}
+
+
+@router.get("/system/config", response_model=dict)
+async def get_system_config(
+    current_user: User = Depends(get_current_admin)
+):
+    """获取系统配置（管理员权限）"""
+    return admin_service.get_system_config()
+
+
+@router.put("/system/config", response_model=dict)
+async def update_system_config(
+    config_data: Dict[str, Any],
+    current_user: User = Depends(get_current_admin)
+):
+    """更新系统配置（管理员权限）"""
+    success = admin_service.update_system_config(config_data)
+    if not success:
+        raise HTTPException(status_code=500, detail="配置更新失败")
+    
+    return {"message": "系统配置更新成功"}
+
+
+# 技能管理API
+@router.get("/skills", response_model=List[Dict[str, Any]])
+async def list_skills(
+    current_user: User = Depends(get_current_admin)
+):
+    """获取技能列表（管理员权限）"""
+    skills = get_all_skills()
+    return [
+        {
+            "name": skill.name,
+            "description": skill.description,
+            "category": skill.category,
+            "enabled": skill.enabled,
+            "parameters": skill.parameters,
+            "system_prompt": skill.system_prompt,
+            "user_prompt": skill.user_prompt,
+            "script": skill.script
+        }
+        for skill in skills
+    ]
+
+
+@router.get("/skills/{skill_name}", response_model=Dict[str, Any])
+async def get_single_skill(
+    skill_name: str,
+    current_user: User = Depends(get_current_admin)
+):
+    """获取单个技能详情（管理员权限）"""
+    skill = get_skill(skill_name)
+    if not skill:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    return {
+        "name": skill.name,
+        "description": skill.description,
+        "category": skill.category,
+        "enabled": skill.enabled,
+        "parameters": skill.parameters,
+        "system_prompt": skill.system_prompt,
+        "user_prompt": skill.user_prompt,
+        "script": skill.script
+    }
+
+
+@router.post("/skills", response_model=dict)
+async def create_new_skill(
+    skill_data: Dict[str, Any],
+    current_user: User = Depends(get_current_admin)
+):
+    """创建新技能（管理员权限）"""
+    required_fields = ["name", "description"]
+    for field in required_fields:
+        if field not in skill_data:
+            raise HTTPException(status_code=400, detail=f"缺少必填字段: {field}")
+    
+    try:
+        skill = create_skill(
+            name=skill_data["name"],
+            description=skill_data["description"],
+            category=skill_data.get("category", "general"),
+            parameters=skill_data.get("parameters", []),
+            system_prompt=skill_data.get("system_prompt", ""),
+            user_prompt=skill_data.get("user_prompt", ""),
+            script=skill_data.get("script", "")
+        )
+        return {"message": "技能创建成功", "skill": skill.name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/skills/{skill_name}", response_model=dict)
+async def update_existing_skill(
+    skill_name: str,
+    skill_data: Dict[str, Any],
+    current_user: User = Depends(get_current_admin)
+):
+    """更新技能（管理员权限）"""
+    try:
+        skill = update_skill(
+            name=skill_name,
+            new_name=skill_data.get("name"),
+            description=skill_data.get("description"),
+            category=skill_data.get("category"),
+            parameters=skill_data.get("parameters"),
+            system_prompt=skill_data.get("system_prompt"),
+            user_prompt=skill_data.get("user_prompt"),
+            script=skill_data.get("script")
+        )
+        if not skill:
+            raise HTTPException(status_code=404, detail="技能不存在")
+        return {"message": "技能更新成功", "skill": skill.name}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/skills/{skill_name}", response_model=dict)
+async def delete_existing_skill(
+    skill_name: str,
+    current_user: User = Depends(get_current_admin)
+):
+    """删除技能（管理员权限）"""
+    success = delete_skill(skill_name)
+    if not success:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    return {"message": "技能删除成功"}
+
+
+@router.post("/skills/{skill_name}/toggle", response_model=dict)
+async def toggle_skill_status(
+    skill_name: str,
+    current_user: User = Depends(get_current_admin)
+):
+    """切换技能启用/禁用状态（管理员权限）"""
+    success = toggle_skill(skill_name)
+    if not success:
+        raise HTTPException(status_code=404, detail="技能不存在")
+    
+    skill = get_skill(skill_name)
+    return {"message": f"技能已{'启用' if skill.enabled else '禁用'}", "enabled": skill.enabled}
+
+
+@router.post("/skills/{skill_name}/test", response_model=dict)
+async def test_existing_skill(
+    skill_name: str,
+    parameters: Dict[str, Any] = {},
+    current_user: User = Depends(get_current_admin)
+):
+    """测试技能（管理员权限）"""
+    result = await execute_skill(skill_name, **parameters)
+    return {
+        "success": result.success,
+        "output": result.output,
+        "error": result.error
+    }
 
 

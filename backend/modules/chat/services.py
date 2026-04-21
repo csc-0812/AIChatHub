@@ -10,7 +10,7 @@ from .models import MessageRole
 
 
 class ChatService:
-    """聊天服务 - 使用 TeamAgent 处理消息"""
+    """聊天服务 - 使用 RouterAgent 处理消息"""
     
     def __init__(self):
         self.session_manager = SessionManager()
@@ -23,7 +23,7 @@ class ChatService:
     ) -> AsyncGenerator[str, None]:
         """
         流式聊天，返回SSE格式数据
-        使用 TeamAgent 处理消息
+        使用 RouterAgent 处理消息
         
         Args:
             session_id: 会话ID
@@ -47,20 +47,20 @@ class ChatService:
                 "title": session.title
             })
         
-        # 获取 TeamAgent
-        team_agent = self.session_manager.get_team_agent(session_id)
-        if not team_agent:
-            raise RuntimeError("无法创建 TeamAgent")
+        # 获取 RouterAgent
+        router_agent = self.session_manager.get_router_agent(session_id)
+        if not router_agent:
+            raise RuntimeError("无法创建 RouterAgent")
         
         # 添加用户消息到会话（用于兼容现有数据模型）
         session.add_message(MessageRole.USER, message)
         
-        # 使用 TeamAgent 进行流式对话
+        # 使用 RouterAgent 进行流式对话
         full_content = ""
         thinking_content = ""
         
         try:
-            async for event in team_agent.stream_chat(message):
+            async for event in router_agent.stream_chat(message):
                 event_type = event["event"]
                 event_data = event["data"]
                 

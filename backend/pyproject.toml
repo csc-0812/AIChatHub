@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Backend API for demo project"
 readme = "README.md"
 requires-python = ">=3.14"
+packages = ["api", "modules", "shared", "tools", "skills", "agents"]
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
@@ -12,10 +13,10 @@ dependencies = [
     "passlib[bcrypt]",
     "python-multipart",
     "email-validator>=2.3.0",
-    "langchain>=0.3.0",
-    "langchain-core>=1.2.20",
-    "langchain-openai>=1.1.11",
-    "langchain-community>=0.3.0",
+    "langchain>=1.2.15",
+    "langchain-core>=1.2.31",
+    "langchain-openai>=1.1.14",
+    "langchain-community>=0.4.1",
     "pydantic-settings>=2.0.0",
     "pyyaml>=6.0",
 ]

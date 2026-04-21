@@ -240,3 +240,175 @@ export async function activateLLMModel(modelId) {
 
   return response.json()
 }
+
+/**
+ * 获取工具列表
+ */
+export async function getTools() {
+  const response = await request('/admin/tools')
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取工具列表失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 获取会话列表
+ */
+export async function getSessions() {
+  const response = await request('/admin/sessions')
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取会话列表失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 删除会话
+ */
+export async function deleteSession(sessionId) {
+  const response = await request(`/admin/sessions/${sessionId}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '删除会话失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 获取系统配置
+ */
+export async function getSystemConfig() {
+  const response = await request('/admin/system/config')
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取系统配置失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 更新系统配置
+ */
+export async function updateSystemConfig(configData) {
+  const response = await request('/admin/system/config', {
+    method: 'PUT',
+    body: JSON.stringify(configData)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '更新系统配置失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 获取技能列表
+ */
+export async function getSkills() {
+  const response = await request('/admin/skills')
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取技能列表失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 创建技能
+ */
+export async function createSkill(skillData) {
+  const response = await request('/admin/skills', {
+    method: 'POST',
+    body: JSON.stringify(skillData)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '创建技能失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 更新技能
+ */
+export async function updateSkill(skillName, skillData) {
+  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}`, {
+    method: 'PUT',
+    body: JSON.stringify(skillData)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '更新技能失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 删除技能
+ */
+export async function deleteSkill(skillName) {
+  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '删除技能失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 切换技能启用/禁用状态
+ */
+export async function toggleSkill(skillName) {
+  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}/toggle`, {
+    method: 'POST'
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '操作失败')
+  }
+
+  return response.json()
+}
+
+/**
+ * 执行技能测试
+ */
+export async function testSkill(skillName, parameters) {
+  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}/test`, {
+    method: 'POST',
+    body: JSON.stringify(parameters)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '测试技能失败')
+  }
+
+  return response.json()
+}

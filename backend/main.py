@@ -3,10 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from api import router as api_router
+from skills import load_skills_from_directory
+
+# 初始化技能加载
+skills_dir = Path(__file__).parent / "skills" / "skills_dir"
+load_skills_from_directory(str(skills_dir))
 
 app = FastAPI(
-    title="Demo API",
-    description="Backend API for demo project",
+    title="AI Chat Hub",
+    description="Backend API for AI Chat Hub project",
     version="1.0.0"
 )
 

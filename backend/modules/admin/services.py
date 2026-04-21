@@ -170,5 +170,64 @@ class AdminService:
             return False
 
 
+    def get_system_config(self) -> Dict[str, Any]:
+        """获取系统配置"""
+        config = config_loader.get_config()
+        
+        return {
+            "site_name": config.get("app", {}).get("site_name", "AI Chat Hub"),
+            "max_context_length": config.get("app", {}).get("max_context_length", 10),
+            "default_temperature": config.get("llm", {}).get("openai", {}).get("temperature", 0.7),
+            "max_tokens": config.get("llm", {}).get("openai", {}).get("max_tokens", 2048),
+            "enable_streaming": config.get("app", {}).get("enable_streaming", True),
+            "session_expire_days": config.get("app", {}).get("session_expire_days", 7)
+        }
+    
+    def update_system_config(self, config_data: Dict[str, Any]) -> bool:
+        """更新系统配置"""
+        try:
+            config = config_loader.get_config()
+            
+            if "site_name" in config_data:
+                if "app" not in config:
+                    config["app"] = {}
+                config["app"]["site_name"] = config_data["site_name"]
+            
+            if "max_context_length" in config_data:
+                if "app" not in config:
+                    config["app"] = {}
+                config["app"]["max_context_length"] = config_data["max_context_length"]
+            
+            if "default_temperature" in config_data:
+                if "llm" not in config:
+                    config["llm"] = {}
+                if "openai" not in config["llm"]:
+                    config["llm"]["openai"] = {}
+                config["llm"]["openai"]["temperature"] = config_data["default_temperature"]
+            
+            if "max_tokens" in config_data:
+                if "llm" not in config:
+                    config["llm"] = {}
+                if "openai" not in config["llm"]:
+                    config["llm"]["openai"] = {}
+                config["llm"]["openai"]["max_tokens"] = config_data["max_tokens"]
+            
+            if "enable_streaming" in config_data:
+                if "app" not in config:
+                    config["app"] = {}
+                config["app"]["enable_streaming"] = config_data["enable_streaming"]
+            
+            if "session_expire_days" in config_data:
+                if "app" not in config:
+                    config["app"] = {}
+                config["app"]["session_expire_days"] = config_data["session_expire_days"]
+            
+            config_loader._config = config
+            return True
+        except Exception as e:
+            admin_logger.error(f"更新系统配置失败: {e}")
+            return False
+
+
 # 创建管理员服务实例
 admin_service = AdminService()

@@ -35,6 +35,34 @@
         >
           ⚙️ 模型配置
         </div>
+        <div 
+          class="menu-item" 
+          :class="{ active: currentTab === 'tools' }"
+          @click="currentTab = 'tools'"
+        >
+          🛠️ 工具管理
+        </div>
+        <div 
+          class="menu-item" 
+          :class="{ active: currentTab === 'skills' }"
+          @click="currentTab = 'skills'"
+        >
+          ⚡ 技能管理
+        </div>
+        <div 
+          class="menu-item" 
+          :class="{ active: currentTab === 'sessions' }"
+          @click="currentTab = 'sessions'"
+        >
+          💬 会话管理
+        </div>
+        <div 
+          class="menu-item" 
+          :class="{ active: currentTab === 'system' }"
+          @click="currentTab = 'system'"
+        >
+          ⚡ 系统设置
+        </div>
       </div>
 
       <!-- 内容区域 -->
@@ -203,6 +231,207 @@
             <div v-if="llmModels.length === 0" class="empty-state">
               暂无模型配置，请点击"添加模型"按钮创建
             </div>
+          </div>
+        </div>
+
+        <!-- 工具管理 -->
+        <div v-if="currentTab === 'tools'" class="tab-content">
+          <div class="section-header">
+            <h2>工具管理</h2>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>工具名称</th>
+                  <th>描述</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="tool in tools" :key="tool.name">
+                  <td>{{ tool.name }}</td>
+                  <td>{{ tool.description }}</td>
+                  <td>
+                    <span class="status-badge active">可用</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="tools.length === 0" class="empty-state">
+              暂无可用工具
+            </div>
+          </div>
+          <div class="config-form" style="margin-top: 20px;">
+            <h3>工具配置说明</h3>
+            <div class="info-box">
+              <p><strong>web_search</strong> - 网络搜索工具，用于获取最新信息</p>
+              <p><strong>calculator</strong> - 计算器工具，用于数学计算</p>
+              <p><strong>file_write</strong> - 文件写入工具，用于保存内容到文件</p>
+              <p><strong>skill_execute</strong> - Skill执行工具，用于执行自定义技能</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 技能管理 -->
+        <div v-if="currentTab === 'skills'" class="tab-content">
+          <div class="section-header">
+            <h2>技能管理</h2>
+            <button class="btn-add" @click="showAddSkillModal">
+              + 添加技能
+            </button>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>技能名称</th>
+                  <th>描述</th>
+                  <th>分类</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="skill in skills" :key="skill.name">
+                  <td>{{ skill.name }}</td>
+                  <td>{{ skill.description }}</td>
+                  <td>
+                    <span class="role-badge" :class="skill.category">
+                      {{ skill.category === 'general' ? '通用' : skill.category === 'productivity' ? '生产力' : skill.category }}
+                    </span>
+                  </td>
+                  <td>
+                    <span :class="['status-badge', skill.enabled ? 'active' : 'disabled']">
+                      {{ skill.enabled ? '启用' : '禁用' }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="action-buttons">
+                      <button 
+                        class="btn-small btn-edit"
+                        @click="showEditSkillModal(skill)"
+                      >
+                        编辑
+                      </button>
+                      <button 
+                        class="btn-small btn-test"
+                        @click="showTestSkillModal(skill)"
+                      >
+                        测试
+                      </button>
+                      <button 
+                        class="btn-small"
+                        :class="skill.enabled ? 'btn-disable' : 'btn-enable'"
+                        @click="toggleSkill(skill, handleLogout)"
+                      >
+                        {{ skill.enabled ? '禁用' : '启用' }}
+                      </button>
+                      <button 
+                        class="btn-small btn-delete"
+                        @click="deleteSkill(skill, handleLogout)"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="skills.length === 0" class="empty-state">
+              暂无技能，请点击"添加技能"按钮创建
+            </div>
+          </div>
+          <div class="config-form" style="margin-top: 20px;">
+            <h3>技能配置说明</h3>
+            <div class="info-box">
+              <p><strong>技能文件格式</strong> - 技能使用 Markdown 格式定义，保存在 skills/skills_dir 目录下</p>
+              <p><strong>参数定义</strong> - 技能可以定义多个参数，支持 string、int、float、bool 类型</p>
+              <p><strong>脚本支持</strong> - 技能可以包含 Python 脚本，通过 parameters 变量访问参数</p>
+              <p><strong>提示词模板</strong> - 支持系统提示词和用户提示词模板</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 会话管理 -->
+        <div v-if="currentTab === 'sessions'" class="tab-content">
+          <div class="section-header">
+            <h2>会话管理</h2>
+            <button class="btn-add" @click="loadSessions(handleLogout)">
+              🔄 刷新
+            </button>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>会话ID</th>
+                  <th>用户ID</th>
+                  <th>标题</th>
+                  <th>消息数</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="session in sessions" :key="session.session_id">
+                  <td>{{ session.session_id.substring(0, 8) }}...</td>
+                  <td>{{ session.user_id || '匿名' }}</td>
+                  <td>{{ session.title }}</td>
+                  <td>{{ session.message_count || 0 }}</td>
+                  <td>{{ formatTime(session.created_at) }}</td>
+                  <td>
+                    <div class="action-buttons">
+                      <button 
+                        class="btn-small btn-delete"
+                        @click="deleteSession(session.session_id, handleLogout)"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="sessions.length === 0" class="empty-state">
+              暂无会话记录
+            </div>
+          </div>
+        </div>
+
+        <!-- 系统设置 -->
+        <div v-if="currentTab === 'system'" class="tab-content">
+          <h2>系统设置</h2>
+          <div class="config-form">
+            <div class="form-group">
+              <label>站点名称</label>
+              <input v-model="systemConfig.site_name" type="text" placeholder="输入站点名称" />
+            </div>
+            <div class="form-group">
+              <label>默认上下文长度</label>
+              <input v-model.number="systemConfig.max_context_length" type="number" min="1" max="50" />
+            </div>
+            <div class="form-group">
+              <label>默认温度 (0-2)</label>
+              <input v-model.number="systemConfig.default_temperature" type="number" min="0" max="2" step="0.1" />
+            </div>
+            <div class="form-group">
+              <label>最大Token数</label>
+              <input v-model.number="systemConfig.max_tokens" type="number" min="1" max="8192" />
+            </div>
+            <div class="form-group">
+              <label>会话过期天数</label>
+              <input v-model.number="systemConfig.session_expire_days" type="number" min="1" max="30" />
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input v-model="systemConfig.enable_streaming" type="checkbox" />
+                启用流式响应
+              </label>
+            </div>
+            <button class="btn-save" @click="saveSystemConfig(handleLogout)">
+              保存配置
+            </button>
           </div>
         </div>
       </div>
@@ -378,6 +607,164 @@
       </div>
     </div>
 
+    <!-- 添加技能弹窗 -->
+    <div v-if="showAddSkillDialog" class="modal-overlay" @click.self="showAddSkillDialog = false">
+      <div class="modal" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <h3>添加技能</h3>
+        <div class="form-group">
+          <label>技能名称 *</label>
+          <input v-model="newSkill.name" type="text" placeholder="输入技能名称" />
+        </div>
+        <div class="form-group">
+          <label>描述 *</label>
+          <textarea v-model="newSkill.description" rows="3" placeholder="输入技能描述"></textarea>
+        </div>
+        <div class="form-group">
+          <label>分类</label>
+          <select v-model="newSkill.category">
+            <option value="general">通用</option>
+            <option value="productivity">生产力</option>
+            <option value="entertainment">娱乐</option>
+            <option value="education">教育</option>
+            <option value="finance">金融</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>参数列表</label>
+          <div v-for="(param, index) in newSkill.parameters" :key="index" class="param-group">
+            <div class="param-row">
+              <input v-model="param.name" type="text" placeholder="参数名称" />
+              <select v-model="param.type">
+                <option value="string">string</option>
+                <option value="int">int</option>
+                <option value="float">float</option>
+                <option value="bool">bool</option>
+              </select>
+              <input v-model="param.description" type="text" placeholder="描述" />
+              <label class="checkbox-label">
+                <input v-model="param.required" type="checkbox" /> 必填
+              </label>
+              <button v-if="newSkill.parameters.length > 1" class="btn-remove-param" @click="removeSkillParam(newSkill, index)">×</button>
+            </div>
+          </div>
+          <button class="btn-add-param" @click="addSkillParam(newSkill)">+ 添加参数</button>
+        </div>
+        <div class="form-group">
+          <label>系统提示词</label>
+          <textarea v-model="newSkill.system_prompt" rows="3" placeholder="系统提示词（可选）"></textarea>
+        </div>
+        <div class="form-group">
+          <label>用户提示词模板</label>
+          <textarea v-model="newSkill.user_prompt" rows="3" placeholder="用户提示词模板，使用 {{参数名}} 引用参数（可选）"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Python 脚本</label>
+          <textarea v-model="newSkill.script" rows="5" placeholder="Python脚本，使用 parameters['参数名'] 访问参数（可选）"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" @click="showAddSkillDialog = false">取消</button>
+          <button class="btn-confirm" @click="addSkill(handleLogout)">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑技能弹窗 -->
+    <div v-if="showEditSkillDialog" class="modal-overlay" @click.self="showEditSkillDialog = false">
+      <div class="modal" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <h3>编辑技能</h3>
+        <p>技能: {{ selectedSkill?.name }}</p>
+        <div class="form-group">
+          <label>技能名称</label>
+          <input v-model="editSkillForm.name" type="text" placeholder="输入技能名称" />
+        </div>
+        <div class="form-group">
+          <label>描述</label>
+          <textarea v-model="editSkillForm.description" rows="3" placeholder="输入技能描述"></textarea>
+        </div>
+        <div class="form-group">
+          <label>分类</label>
+          <select v-model="editSkillForm.category">
+            <option value="general">通用</option>
+            <option value="productivity">生产力</option>
+            <option value="entertainment">娱乐</option>
+            <option value="education">教育</option>
+            <option value="finance">金融</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>参数列表</label>
+          <div v-for="(param, index) in editSkillForm.parameters" :key="index" class="param-group">
+            <div class="param-row">
+              <input v-model="param.name" type="text" placeholder="参数名称" />
+              <select v-model="param.type">
+                <option value="string">string</option>
+                <option value="int">int</option>
+                <option value="float">float</option>
+                <option value="bool">bool</option>
+              </select>
+              <input v-model="param.description" type="text" placeholder="描述" />
+              <label class="checkbox-label">
+                <input v-model="param.required" type="checkbox" /> 必填
+              </label>
+              <button v-if="editSkillForm.parameters.length > 1" class="btn-remove-param" @click="removeSkillParam(editSkillForm, index)">×</button>
+            </div>
+          </div>
+          <button class="btn-add-param" @click="addSkillParam(editSkillForm)">+ 添加参数</button>
+        </div>
+        <div class="form-group">
+          <label>系统提示词</label>
+          <textarea v-model="editSkillForm.system_prompt" rows="3" placeholder="系统提示词（可选）"></textarea>
+        </div>
+        <div class="form-group">
+          <label>用户提示词模板</label>
+          <textarea v-model="editSkillForm.user_prompt" rows="3" placeholder="用户提示词模板，使用 {{参数名}} 引用参数（可选）"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Python 脚本</label>
+          <textarea v-model="editSkillForm.script" rows="5" placeholder="Python脚本，使用 parameters['参数名'] 访问参数（可选）"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" @click="showEditSkillDialog = false">取消</button>
+          <button class="btn-confirm" @click="updateSkill(handleLogout)">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 测试技能弹窗 -->
+    <div v-if="showTestSkillDialog" class="modal-overlay" @click.self="showTestSkillDialog = false">
+      <div class="modal" style="max-width: 500px;">
+        <h3>测试技能: {{ selectedSkill?.name }}</h3>
+        <div class="form-group">
+          <label>测试参数</label>
+          <div v-for="param in selectedSkill?.parameters" :key="param.name" class="param-group">
+            <input 
+              v-model="testSkillParams[param.name]" 
+              type="text" 
+              :placeholder="param.description || param.name"
+              :required="param.required"
+            />
+          </div>
+          <div v-if="!selectedSkill?.parameters || selectedSkill.parameters.length === 0" class="empty-state">
+            该技能没有参数
+          </div>
+        </div>
+        <button class="btn-save" @click="testSkill(handleLogout)" style="margin-bottom: 15px;">执行测试</button>
+        <div v-if="testSkillResult" class="test-result">
+          <h4>测试结果</h4>
+          <div :class="['result-box', testSkillResult.success ? 'success' : 'error']">
+            <p class="result-status">{{ testSkillResult.success ? '✓ 成功' : '✗ 失败' }}</p>
+            <pre v-if="testSkillResult.output">{{ testSkillResult.output }}</pre>
+            <p v-if="testSkillResult.error" class="result-error">{{ testSkillResult.error }}</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" @click="showTestSkillDialog = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 提示消息 -->
     <div v-if="message.show" :class="['toast', message.type]">
       {{ message.text }}
@@ -401,6 +788,10 @@ export default {
     this.loadDashboard(this.handleLogout)
     this.loadUsers(this.handleLogout)
     this.loadLLMModels(this.handleLogout)
+    this.loadTools(this.handleLogout)
+    this.loadSkills(this.handleLogout)
+    this.loadSessions(this.handleLogout)
+    this.loadSystemConfig(this.handleLogout)
   },
   methods: {
     checkAdmin() {
@@ -419,6 +810,17 @@ export default {
       localStorage.removeItem('username')
       localStorage.removeItem('role')
       this.$emit('logout')
+    },
+    formatTime(timestamp) {
+      if (!timestamp) return '-'
+      const date = new Date(timestamp)
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     }
   }
 }
@@ -777,6 +1179,34 @@ export default {
   cursor: not-allowed;
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #555;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.info-box {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.info-box p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #555;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -876,5 +1306,140 @@ export default {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+}
+
+.form-group textarea {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: monospace;
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.btn-test {
+  background-color: #2196f3;
+  color: white;
+}
+
+.btn-test:hover {
+  background-color: #1976d2;
+}
+
+.param-group {
+  margin-bottom: 10px;
+}
+
+.param-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.param-row input,
+.param-row select {
+  flex: 1;
+  min-width: 100px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.param-row .checkbox-label {
+  margin-left: 0;
+}
+
+.btn-add-param {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-add-param:hover {
+  background-color: #5a6fd6;
+}
+
+.btn-remove-param {
+  padding: 6px 10px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.btn-remove-param:hover {
+  background-color: #d32f2f;
+}
+
+.test-result {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.test-result h4 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.result-box {
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.result-box.success {
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+}
+
+.result-box.error {
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+}
+
+.result-status {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.result-box.success .result-status {
+  color: #388e3c;
+}
+
+.result-box.error .result-status {
+  color: #d32f2f;
+}
+
+.result-box pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.result-error {
+  color: #d32f2f;
+  font-size: 14px;
 }
 </style>
