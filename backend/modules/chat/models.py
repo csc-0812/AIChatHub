@@ -27,28 +27,68 @@ class ChatSession(BaseModel):
     user_id: Optional[str] = None
     title: Optional[str] = None
     messages: List[ChatMessage] = Field(default_factory=list)
-    max_context_length: int = 10  # 最大保留的上下文消息数
+    max_context_length: int = 10
+    summary: Optional[str] = None
+    summary_timestamp: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
     def add_message(self, role: MessageRole, content: str):
-        """添加消息并维护上下文长度"""
-        message = ChatMessage(role=role, content=content)
-        self.messages.append(message)
+        """添加消息并维护上下文（不含摘要，同步方法）"""
+        self.messages.append(ChatMessage(role=role, content=content))
+        self.updated_at = datetime.now()
         
-        # 保留最近的 max_context_length 条消息（不包括系统消息）
         non_system_messages = [m for m in self.messages if m.role != MessageRole.SYSTEM]
         if len(non_system_messages) > self.max_context_length:
-            # 只保留最近的 max_context_length 条非系统消息
             messages_to_keep = non_system_messages[-self.max_context_length:]
-            # 保留系统消息和需要保留的消息
             system_messages = [m for m in self.messages if m.role == MessageRole.SYSTEM]
             self.messages = system_messages + messages_to_keep
-        
+    
+    async def add_message_with_summary(self, role: MessageRole, content: str):
+        """添加消息并维护上下文（含智能摘要，异步方法）"""
+        self.messages.append(ChatMessage(role=role, content=content))
         self.updated_at = datetime.now()
+        
+        if len(self.messages) > self.max_context_length * 2:
+            await self._generate_summary()
+    
+    async def _generate_summary(self):
+        """生成对话摘要"""
+        from shared.utils.llm_client import llm_client
+        
+        messages_to_summarize = self.messages[:-self.max_context_length]
+        
+        history_text = "\n".join([
+            f"{m.role.value}: {m.content}" 
+            for m in messages_to_summarize
+        ])
+        
+        prompt = f"""请对以下对话历史进行简洁摘要，保留关键信息和决策点，不超过500字：\n\n{history_text}"""
+        
+        self.summary = await llm_client.achat([{"role": "user", "content": prompt}])
+        self.summary_timestamp = datetime.now()
+        
+        self.messages = self.messages[-self.max_context_length:]
     
     def get_context_messages(self) -> List[Dict[str, str]]:
-        """获取用于LLM的上下文消息"""
+        """获取用于LLM的上下文消息（包含摘要）"""
+        context = []
+        
+        if self.summary:
+            context.append({
+                "role": "system", 
+                "content": f"对话摘要：{self.summary}"
+            })
+        
+        context.extend([
+            {"role": msg.role.value, "content": msg.content}
+            for msg in self.messages
+        ])
+        
+        return context
+    
+    def get_context_for_agent(self) -> List[Dict[str, str]]:
+        """获取用于Agent的上下文（不含摘要，保持兼容性）"""
         return [
             {"role": msg.role.value, "content": msg.content}
             for msg in self.messages
@@ -70,15 +110,15 @@ class CreateSessionResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """聊天请求"""
-    session_id: str  # 会话ID
-    message: str     # 用户消息
-    stream: bool = True  # 是否使用流式输出
+    session_id: str
+    message: str
+    stream: bool = True
 
 
 class ChatResponse(BaseModel):
     """聊天响应"""
     content: str
-    reasoning: Optional[str] = None  # 思考过程
+    reasoning: Optional[str] = None
     done: bool = False
 
 
@@ -123,4 +163,4 @@ class ChatAttachment(BaseModel):
     file_type: str
     content_type: str
     url: str
-    content: Optional[str] = None  # 文本文件的内容
+    content: Optional[str] = None

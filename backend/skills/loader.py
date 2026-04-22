@@ -1,30 +1,128 @@
 """
-技能加载器
-从文件或目录加载技能定义
+技能加载器 - 基于 OpenClaw SDK
+
+从文件或目录加载 OpenClaw Skill 定义。
+支持 OpenClaw 标准目录结构：每个技能一个文件夹，包含 SKILL.md 文件。
 """
 import os
+import re
 from typing import Dict, List, Optional
-from .parser import parse_skill_markdown, SkillDefinition
+
+try:
+    from openclaw import Skill
+except ImportError:
+    class Skill:
+        def __init__(self):
+            self.name = ""
+            self.description = ""
+            self.version = "1.0.0"
+            self.category = "general"
+            self.enabled = True
+            self.parameters = []
+            self.system_prompt = ""
+            self.user_prompt = ""
+            self.script = ""
+            self.skill_dir = ""
+        
+        @classmethod
+        def from_file(cls, file_path: str):
+            skill = cls()
+            skill.skill_dir = os.path.dirname(file_path)
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                if content.startswith('---'):
+                    end_idx = content.find('\n---\n')
+                    if end_idx > 0:
+                        yaml_content = content[4:end_idx]
+                        content = content[end_idx+5:]
+                        
+                        for line in yaml_content.split('\n'):
+                            line = line.strip()
+                            if line.startswith('name:'):
+                                skill.name = line[5:].strip()
+                            elif line.startswith('description:'):
+                                skill.description = line[12:].strip()
+                            elif line.startswith('version:'):
+                                skill.version = line[8:].strip()
+                            elif line.startswith('category:'):
+                                skill.category = line[10:].strip()
+                            elif line.startswith('enabled:'):
+                                skill.enabled = line[9:].strip().lower() == 'true'
+                
+                if not skill.name:
+                    match = re.search(r'^#\s*([^\n]+)', content)
+                    if match:
+                        skill.name = match.group(1).strip()
+                
+                params_match = re.search(r'##\s*Parameters\s*\n([\s\S]*?)(?=\n##\s|$)', content)
+                if params_match:
+                    params_content = params_match.group(1)
+                    params = []
+                    current_param = {}
+                    for line in params_content.split('\n'):
+                        line = line.strip()
+                        if line.startswith('- name:'):
+                            if current_param:
+                                params.append(current_param)
+                            current_param = {'name': line[7:].strip()}
+                        elif line.startswith('type:'):
+                            current_param['type'] = line[5:].strip()
+                        elif line.startswith('description:'):
+                            current_param['description'] = line[12:].strip()
+                        elif line.startswith('required:'):
+                            current_param['required'] = line[9:].strip().lower() == 'true'
+                        elif line.startswith('default:'):
+                            current_param['default'] = line[8:].strip()
+                    if current_param:
+                        params.append(current_param)
+                    skill.parameters = params
+                
+                sys_prompt_match = re.search(r'##\s*System Prompt\s*\n([\s\S]*?)(?=\n##\s|$)', content)
+                if sys_prompt_match:
+                    skill.system_prompt = sys_prompt_match.group(1).strip()
+                
+                user_prompt_match = re.search(r'##\s*User Prompt\s*\n([\s\S]*?)(?=\n##\s|$)', content)
+                if user_prompt_match:
+                    skill.user_prompt = user_prompt_match.group(1).strip()
+                
+                script_match = re.search(r'```python\s*\n([\s\S]*?)\n```', content)
+                if script_match:
+                    skill.script = script_match.group(1)
+            
+            except Exception as e:
+                print(f"解析技能文件失败 {file_path}: {e}")
+            
+            return skill
+        
+        async def execute(self, parameters):
+            if self.script:
+                exec_globals = {'parameters': parameters, 'result': '', 'skill_dir': self.skill_dir}
+                try:
+                    exec(self.script, exec_globals)
+                    return {'success': True, 'output': exec_globals.get('result', '执行完成')}
+                except Exception as e:
+                    return {'success': False, 'error': str(e)}
+            return {'success': True, 'output': f"技能 '{self.name}' 执行成功"}
 
 
-_skills_cache: Dict[str, SkillDefinition] = {}
+_skills_cache: Dict[str, Skill] = {}
 
 
-def load_skill(file_path: str) -> Optional[SkillDefinition]:
+def load_skill(file_path: str) -> Optional[Skill]:
     """
     从文件加载技能定义
     
     Args:
-        file_path: markdown 文件路径
+        file_path: SKILL.md 文件路径
         
     Returns:
-        SkillDefinition 对象，如果加载失败返回 None
+        Skill 对象，如果加载失败返回 None
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        skill = parse_skill_markdown(content)
+        skill = Skill.from_file(file_path)
         
         if skill.name:
             _skills_cache[skill.name] = skill
@@ -36,9 +134,17 @@ def load_skill(file_path: str) -> Optional[SkillDefinition]:
         return None
 
 
-def load_skills_from_directory(directory: str) -> List[SkillDefinition]:
+def load_skills_from_directory(directory: str) -> List[Skill]:
     """
     从目录加载所有技能定义
+    
+    OpenClaw 标准结构：每个技能一个文件夹，包含 SKILL.md 文件
+    skills_dir/
+    ├── weather_query/
+    │   └── SKILL.md
+    ├── pdf_analyzer/
+    │   └── SKILL.md
+    └── ...
     
     Args:
         directory: 技能目录路径
@@ -52,29 +158,31 @@ def load_skills_from_directory(directory: str) -> List[SkillDefinition]:
         os.makedirs(directory, exist_ok=True)
         return skills
     
-    for filename in os.listdir(directory):
-        if filename.endswith('.md'):
-            file_path = os.path.join(directory, filename)
-            skill = load_skill(file_path)
-            if skill:
-                skills.append(skill)
+    for item in os.listdir(directory):
+        item_path = os.path.join(directory, item)
+        if os.path.isdir(item_path):
+            skill_file = os.path.join(item_path, 'SKILL.md')
+            if os.path.isfile(skill_file):
+                skill = load_skill(skill_file)
+                if skill:
+                    skills.append(skill)
     
     return skills
 
 
-def get_skill(name: str) -> Optional[SkillDefinition]:
+def get_skill(name: str) -> Optional[Skill]:
     """获取已加载的技能"""
     return _skills_cache.get(name)
 
 
-def get_all_skills() -> List[SkillDefinition]:
+def get_all_skills() -> List[Skill]:
     """获取所有已加载的技能"""
     return list(_skills_cache.values())
 
 
 def create_skill_template(directory: str, skill_name: str) -> bool:
     """
-    创建技能模板文件
+    创建技能模板文件（OpenClaw 标准格式）
     
     Args:
         directory: 目标目录
@@ -85,18 +193,25 @@ def create_skill_template(directory: str, skill_name: str) -> bool:
     """
     try:
         os.makedirs(directory, exist_ok=True)
-        file_path = os.path.join(directory, f"{skill_name.lower().replace(' ', '_')}.md")
         
-        template = f"""# Skill: {skill_name}
+        skill_dir_name = skill_name.lower().replace(' ', '_').replace('-', '_')
+        skill_dir = os.path.join(directory, skill_dir_name)
+        os.makedirs(skill_dir, exist_ok=True)
+        
+        file_path = os.path.join(skill_dir, 'SKILL.md')
+        
+        template = f"""---
+name: {skill_name}
+description: {skill_name} 的描述信息
+version: 1.0.0
+category: general
+enabled: true
+---
+
+# {skill_name}
 
 ## Description
-{skill_name} 的描述信息
-
-## Metadata
-- Author: 
-- Version: 1.0.0
-- Category: general
-- Enabled: true
+{skill_name} 的详细描述
 
 ## Parameters
 - name: input
@@ -111,19 +226,14 @@ def create_skill_template(directory: str, skill_name: str) -> bool:
 请处理以下请求：
 {{input}}
 
-## Script (可选)
+## Script
 ```python
 # 在此添加 Python 脚本
-# 可用变量: parameters (参数字典), context (上下文信息)
-# 返回值将作为技能执行结果
+# 可用变量: parameters (参数字典), skill_dir (技能目录路径)
+# 返回值: result
 
 result = f"执行 {skill_name}，参数: {{parameters}}"
-return result
 ```
-
-## Actions (可选)
-- action1
-- action2
 """
         
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -143,7 +253,7 @@ def create_skill(
     system_prompt: str = "",
     user_prompt: str = "",
     script: str = ""
-) -> SkillDefinition:
+) -> Skill:
     """
     创建新技能（内存中）
     
@@ -165,7 +275,7 @@ def create_skill(
     if get_skill(name):
         raise ValueError(f"技能 '{name}' 已存在")
     
-    skill = SkillDefinition()
+    skill = Skill()
     skill.name = name
     skill.description = description
     skill.category = category
@@ -188,7 +298,7 @@ def update_skill(
     system_prompt: str = None,
     user_prompt: str = None,
     script: str = None
-) -> Optional[SkillDefinition]:
+) -> Optional[Skill]:
     """
     更新技能（内存中）
     

@@ -1,95 +1,183 @@
 """
-路由智能体
-作为核心路由中心，负责问题解析和任务分发
+路由智能体 - 基于 LangChain Agent
+
+作为核心路由中心，负责问题解析和任务分发。
+支持将子 Agent 和 OpenClaw Skill 作为工具调用。
+
+架构设计：
+- 使用 LangChain create_agent 作为核心执行引擎
+- 将子 Agent、工具、技能统一作为 Tool 注册
+- LLM 自动决定调用哪个工具/Agent/技能
+
+支持的工具类型：
+1. 原生工具（calculator, web_search 等）
+2. 子智能体（Researcher, Analyzer 等）
+3. OpenClaw 技能（通过技能目录加载）
 """
 import uuid
+import os
 from typing import List, Dict, Any, Optional, AsyncGenerator
-from datetime import datetime
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 
-from .models import AgentRole, AgentConfig, AgentMessage, AgentResponse, RouteDecision
+from langchain.agents import create_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+from .base_agent import BaseAgent
+from .models import AgentConfig, AgentResponse, AgentRole
 from .sub_agent import SubAgent
+from .langchain_adapter import SubAgentTool
 from tools import get_all_tools, get_tool_instances
-from skills import load_skills_from_directory, execute_skill, get_skill
+from skills import load_skills_as_tools
 
 
-class RouterAgent:
+class RouterAgent(BaseAgent):
     """
-    路由智能体 - 作为核心路由中心
+    路由智能体 - 基于 LangChain Agent
     
-    架构设计：
-    - 接收用户问题
-    - 解析问题意图
-    - 根据可用资源做出路由决策
-    - 分发到工具、子智能体或技能
+    核心职责：
+    - 解析用户问题
+    - 选择最合适的工具/子agent/技能
+    - 执行并返回结果
+    
+    扩展机制：
+    - 支持动态注册子agent
+    - 支持动态添加工具
+    - 支持加载 OpenClaw 技能
+    
+    上下文管理：
+    - 使用外部传入的 context（来自 ChatSession）
+    - 不再维护内部的 message_history
     """
     
     def __init__(self):
+        config = AgentConfig(
+            role=AgentRole.ROUTER,
+            name="Router",
+            description="路由智能体，负责任务分发",
+            system_prompt="你是一个 helpful 的AI助手。",
+            context_window=10
+        )
+        super().__init__(config)
+        
         self.sub_agents: Dict[str, SubAgent] = {}
-        self.message_history: List[AgentMessage] = []
         self.session_id: str = str(uuid.uuid4())
         
-        self._tools_info: List[Dict[str, Any]] = []
-        self._skills_info: List[Dict[str, Any]] = []
+        self._native_tools: List[Any] = []
+        self._skill_tools: List[Any] = []
+        
+        self._agent = None
+        self._sub_agent_tool: SubAgentTool = SubAgentTool()
         
         self._load_resources()
         self._initialize_default_sub_agents()
+        self._build_agent()
     
     def _load_resources(self):
-        """加载可用资源"""
-        # 加载工具
-        tools = get_all_tools()
-        for tool in tools:
-            tool_name = getattr(tool, 'name', None)
-            if tool_name is None:
-                tool_name = getattr(tool, '__name__', 'unknown')
-            self._tools_info.append({
-                "name": tool_name,
-                "description": getattr(tool, 'description', '')
-            })
+        """加载可用资源：工具和技能"""
+        self._native_tools = get_tool_instances(get_all_tools())
         
-        # 加载技能
-        import os
         skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills", "skills_dir")
         skills_dir = os.path.abspath(skills_dir)
-        skills = load_skills_from_directory(skills_dir)
-        for skill in skills:
-            self._skills_info.append({
-                "name": skill.name,
-                "description": skill.description
-            })
+        self._skill_tools = load_skills_as_tools(skills_dir)
     
     def _initialize_default_sub_agents(self):
         """初始化默认子智能体"""
         researcher_config = AgentConfig(
             role=AgentRole.RESEARCHER,
             name="Researcher",
-            description="负责信息收集和研究任务",
+            description="负责信息收集和研究任务，擅长网络搜索和信息整理",
             tools=["web_search"],
             system_prompt="你是一个专业的研究者，擅长收集和整理信息。"
         )
-        self.add_sub_agent(researcher_config)
+        self.register_sub_agent(researcher_config)
         
         analyzer_config = AgentConfig(
             role=AgentRole.ANALYZER,
             name="Analyzer",
-            description="负责数据分析和计算任务",
+            description="负责数据分析和计算任务，擅长数学计算和数据分析",
             tools=["calculator"],
             system_prompt="你是一个专业的数据分析专家，擅长数学计算和数据分析。"
         )
-        self.add_sub_agent(analyzer_config)
+        self.register_sub_agent(analyzer_config)
     
-    def add_sub_agent(self, config: AgentConfig) -> str:
-        """添加子智能体"""
+    @property
+    def _all_tools(self) -> List[Any]:
+        """获取所有工具（原生工具 + 技能工具 + 子agent工具）"""
+        return [self._sub_agent_tool] + self._native_tools + self._skill_tools
+    
+    def _build_tool_descriptions(self) -> str:
+        """构建工具描述字符串（用于系统提示）"""
+        tool_descriptions = []
+        
+        for tool in self._all_tools:
+            tool_name = getattr(tool, 'name', None) or getattr(tool, '__name__', 'unknown')
+            tool_desc = getattr(tool, 'description', '')
+            tool_descriptions.append(f"- {tool_name}: {tool_desc}")
+        
+        registered_agents = self._sub_agent_tool.get_registered_agents()
+        if registered_agents:
+            tool_descriptions.append(f"\n可用子智能体: {', '.join(registered_agents)}")
+        
+        return "\n".join(tool_descriptions)
+    
+    def _build_agent(self):
+        """构建 Agent"""
+        from shared.utils.llm_client import llm_client
+        
+        llm_client._ensure_model_initialized()
+        llm = llm_client._model
+        
+        if not llm:
+            self._agent = None
+            return
+        
+        system_prompt = """
+你是一个智能路由助手，负责根据用户的问题选择最合适的工具或智能体来处理。
+
+## 你的任务：
+分析用户的问题，选择最合适的工具/智能体/技能来解决问题。
+
+## 可用工具：
+{tool_descriptions}
+
+## 输出格式：
+请直接根据工具的格式要求输出，不要添加额外的解释。
+
+## 注意：
+1. 如果需要实时信息，使用 web_search 工具
+2. 如果需要计算，使用 calculator 工具
+3. 如果需要专业知识，调用 sub_agent 工具并指定子智能体名称（如 Researcher, Analyzer）
+4. 如果需要特定功能，调用对应的技能
+5. 如果不需要工具，可以直接回答用户的问题
+"""
+        
+        formatted_prompt = system_prompt.format(tool_descriptions=self._build_tool_descriptions())
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", formatted_prompt),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("user", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ])
+        
+        self._agent = create_agent(llm=llm, tools=self._all_tools, prompt=prompt)
+    
+    def register_sub_agent(self, config: AgentConfig) -> str:
+        """注册子智能体（作为工具使用）"""
         agent_id = str(uuid.uuid4())
-        self.sub_agents[agent_id] = SubAgent(config)
+        sub_agent = SubAgent(config)
+        self.sub_agents[agent_id] = sub_agent
+        self._sub_agent_tool.register_agent(sub_agent)
+        
+        self._build_agent()
         return agent_id
     
-    def remove_sub_agent(self, agent_id: str) -> bool:
-        """移除子智能体"""
+    def unregister_sub_agent(self, agent_id: str) -> bool:
+        """注销子智能体"""
         if agent_id in self.sub_agents:
+            agent = self.sub_agents[agent_id]
+            self._sub_agent_tool.unregister_agent(agent.config.name)
             del self.sub_agents[agent_id]
+            self._build_agent()
             return True
         return False
     
@@ -100,258 +188,137 @@ class RouterAgent:
                 return agent
         return None
     
-    def _build_router_prompt(self) -> ChatPromptTemplate:
-        """构建路由决策提示词"""
-        tools_str = "\n".join([
-            f"- {tool['name']}: {tool['description']}"
-            for tool in self._tools_info
-        ])
-        
-        agents_str = "\n".join([
-            f"- {agent.config.name} ({agent.config.role.value}): {agent.config.description}"
-            for agent in self.sub_agents.values()
-        ])
-        
-        skills_str = "\n".join([
-            f"- {skill['name']}: {skill['description']}"
-            for skill in self._skills_info
-        ])
-        
-        system_prompt = """
-你是一个智能路由助手，负责根据用户的问题选择最合适的处理方式。
-
-## 可用工具：
-{tools_str}
-
-## 可用子智能体：
-{agents_str}
-
-## 可用技能：
-{skills_str}
-
-## 路由规则：
-1. 需要实时信息 → 调用工具
-2. 需要专业知识 → 调用子智能体
-3. 需要特定功能 → 调用技能
-4. 简单问题 → 直接回答
-
-## 输出格式（JSON）：
-请输出严格的JSON格式，例如：
-{"target_type":"direct","target_name":"direct_answer","confidence":0.8,"reasoning":"直接回答用户问题","parameters":{"question":"用户的问题"}}
-"""
-
-        system_prompt = system_prompt.format(
-            tools_str=tools_str if tools_str else '无',
-            agents_str=agents_str if agents_str else '无',
-            skills_str=skills_str if skills_str else '无'
-        )
-        
-        return ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("user", "{question}")
-        ])
+    def add_tool(self, tool):
+        """添加自定义工具"""
+        self._native_tools.append(tool)
+        self._build_agent()
     
-    async def _make_decision(self, question: str) -> RouteDecision:
-        """做出路由决策"""
-        from shared.utils.llm_client import llm_client
-        import json
-        
-        llm_client._ensure_model_initialized()
-        llm = llm_client._model
-        
-        if not llm:
-            return RouteDecision(
-                target_type="direct",
-                target_name="direct_answer",
-                confidence=0.5,
-                reasoning="LLM未初始化"
-            )
-        
-        try:
-            prompt = self._build_router_prompt()
-            chain = prompt | llm
-            
-            raw_result = await chain.ainvoke({"question": question})
-            
-            content = raw_result if isinstance(raw_result, str) else getattr(raw_result, 'content', str(raw_result))
-            
+    def remove_tool(self, tool_name: str):
+        """移除工具"""
+        self._native_tools = [
+            t for t in self._native_tools 
+            if getattr(t, 'name', '') != tool_name
+        ]
+        self._build_agent()
+    
+    async def process(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AgentResponse:
+        """处理消息（使用外部传入的上下文）"""
+        if self._agent and context:
             try:
-                json_start = content.find('{')
-                json_end = content.rfind('}') + 1
-                if json_start != -1 and json_end > json_start:
-                    json_str = content[json_start:json_end]
-                    result = json.loads(json_str)
-                else:
-                    result = json.loads(content.strip())
+                chat_history = context[-self.config.context_window:]
+                langchain_history = self._convert_dict_messages(chat_history)
                 
-                return RouteDecision(**result)
-            except json.JSONDecodeError:
-                return RouteDecision(
-                    target_type="direct",
-                    target_name="direct_answer",
-                    confidence=0.3,
-                    reasoning=f"JSON解析失败，降级为直接回答"
+                response = await self._agent.ainvoke({
+                    "input": message,
+                    "chat_history": langchain_history
+                })
+                
+                answer = response.get("output", response.get("content", str(response)))
+                
+                return AgentResponse(
+                    content=answer,
+                    thinking="通过 LangChain Agent 处理",
+                    agent_name=self.config.name,
+                    role=self.config.role
                 )
-        except Exception as e:
-            return RouteDecision(
-                target_type="direct",
-                target_name="direct_answer",
-                confidence=0.3,
-                reasoning=f"决策失败: {str(e)}"
-            )
+            except Exception:
+                pass
+        
+        return await self._direct_answer(message, context)
     
-    async def _execute_decision(self, decision: RouteDecision) -> AgentResponse:
-        """执行路由决策"""
-        target_type = decision.target_type
-        target_name = decision.target_name
-        parameters = decision.parameters
-        
-        if target_type == "tool":
-            return await self._execute_tool(target_name, parameters)
-        elif target_type == "agent":
-            return await self._execute_agent(target_name, parameters)
-        elif target_type == "skill":
-            return await self._execute_skill(target_name, parameters)
-        else:
-            return await self._execute_direct(parameters)
+    async def chat(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AgentResponse:
+        """处理用户消息（兼容旧接口，需要传入上下文）"""
+        return await self.process(message, context)
     
-    async def _execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> AgentResponse:
-        """执行工具调用"""
-        for agent in self.sub_agents.values():
-            if tool_name in agent.get_tools():
-                input_text = f"使用工具 {tool_name}，参数: {parameters}"
-                response = await agent.process(input_text, self.message_history)
-                response.thinking = f"调用工具: {tool_name}"
-                return response
-        
-        return AgentResponse(
-            content=f"未找到支持工具 '{tool_name}' 的智能体",
-            thinking=f"工具不可用",
-            agent_name="Router",
-            role=AgentRole.ROUTER
-        )
-    
-    async def _execute_agent(self, agent_name: str, parameters: Dict[str, Any]) -> AgentResponse:
-        """调用子智能体"""
-        agent = self.get_sub_agent_by_name(agent_name)
-        if agent:
-            question = parameters.get("question", "") or parameters.get("input", "")
-            response = await agent.process(question, self.message_history)
-            response.thinking = f"转发给: {agent_name}"
-            return response
-        
-        return AgentResponse(
-            content=f"未找到智能体 '{agent_name}'",
-            thinking=f"智能体不存在",
-            agent_name="Router",
-            role=AgentRole.ROUTER
-        )
-    
-    async def _execute_skill(self, skill_name: str, parameters: Dict[str, Any]) -> AgentResponse:
-        """执行技能"""
-        result = await execute_skill(skill_name, **parameters)
-        
-        if result.success:
-            return AgentResponse(
-                content=str(result.output),
-                thinking=f"执行技能: {skill_name}",
-                agent_name="Router",
-                role=AgentRole.ROUTER
-            )
-        else:
-            return AgentResponse(
-                content=f"技能执行失败: {result.error}",
-                thinking=f"技能执行失败",
-                agent_name="Router",
-                role=AgentRole.ROUTER
-            )
-    
-    async def _execute_direct(self, parameters: Dict[str, Any]) -> AgentResponse:
-        """直接回答"""
-        from shared.utils.llm_client import llm_client
-        
-        question = parameters.get("question", "") or parameters.get("input", "")
-        
-        messages = [{"role": "system", "content": "你是一个 helpful 的AI助手。"}]
-        for msg in self.message_history[-self.config.context_window:]:
-            messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": question})
-        
-        response = await llm_client.achat(messages)
-        return AgentResponse(
-            content=response,
-            thinking="直接回答",
-            agent_name="Router",
-            role=AgentRole.ROUTER
-        )
-    
-    async def chat(self, message: str) -> AgentResponse:
-        """处理用户消息"""
-        decision = await self._make_decision(message)
-        response = await self._execute_decision(decision)
-        
-        self.message_history.append(AgentMessage(role="user", content=message))
-        self.message_history.append(AgentMessage(
-            role="assistant",
-            content=response.content,
-            agent_name=response.agent_name,
-            metadata={"route_decision": decision.dict()}
-        ))
-        
-        return response
-    
-    async def stream_chat(self, message: str) -> AsyncGenerator[Dict[str, Any], None]:
-        """流式处理用户消息"""
-        decision = await self._make_decision(message)
-        
+    async def stream_process(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """流式处理消息（使用外部传入的上下文）"""
         yield {
-            "event": "route_decision",
-            "data": decision.dict()
+            "event": "start",
+            "data": {"agent": self.config.name, "role": self.config.role.value}
         }
         
-        self.message_history.append(AgentMessage(role="user", content=message))
-        
-        if decision.target_type == "agent":
-            agent = self.get_sub_agent_by_name(decision.target_name)
-            if agent:
-                async for event in agent.stream_process(message, self.message_history[:-1]):
-                    yield event
-        else:
-            response = await self._execute_decision(decision)
-            yield {
-                "event": "done",
-                "data": {
-                    "thinking": response.thinking,
-                    "answer": response.content,
-                    "agent": response.agent_name,
-                    "role": response.role.value
+        if self._agent and context:
+            try:
+                chat_history = context[:-1] if context else []
+                langchain_history = self._convert_dict_messages(chat_history)
+                
+                final_answer = ""
+                async for chunk in self._agent.astream({
+                    "input": message,
+                    "chat_history": langchain_history
+                }):
+                    if isinstance(chunk, dict) and "output" in chunk:
+                        final_answer = chunk["output"]
+                        yield {
+                            "event": "answer_chunk",
+                            "data": {"chunk": chunk["output"]}
+                        }
+                    elif isinstance(chunk, dict) and "agent_action" in chunk:
+                        action = chunk["agent_action"]
+                        yield {
+                            "event": "tool_call",
+                            "data": {
+                                "tool": action.tool,
+                                "parameters": action.tool_input
+                            }
+                        }
+                    else:
+                        chunk_str = str(chunk)
+                        final_answer += chunk_str
+                        yield {
+                            "event": "answer_chunk",
+                            "data": {"chunk": chunk_str}
+                        }
+                
+                yield {
+                    "event": "done",
+                    "data": {
+                        "thinking": "通过 LangChain Agent 处理",
+                        "answer": final_answer,
+                        "agent": self.config.name,
+                        "role": self.config.role.value
+                    }
                 }
+                return
+            except Exception:
+                pass
+        
+        full_content = ""
+        async for chunk in self._stream_direct_answer(message, context):
+            full_content += chunk
+            yield {
+                "event": "answer_chunk",
+                "data": {"chunk": chunk}
             }
+        
+        yield {
+            "event": "done",
+            "data": {
+                "thinking": "直接回答",
+                "answer": full_content,
+                "agent": self.config.name,
+                "role": self.config.role.value
+            }
+        }
     
-    @property
-    def config(self):
-        """获取配置（路由智能体自身配置）"""
-        return AgentConfig(
-            role=AgentRole.ROUTER,
-            name="Router",
-            description="路由智能体，负责任务分发"
-        )
-    
-    def get_history(self) -> List[AgentMessage]:
-        """获取对话历史"""
-        return self.message_history.copy()
-    
-    def clear_history(self):
-        """清空对话历史"""
-        self.message_history.clear()
+    async def stream_chat(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """流式处理用户消息（兼容旧接口，需要传入上下文）"""
+        async for event in self.stream_process(message, context):
+            yield event
     
     def get_available_resources(self) -> Dict[str, Any]:
         """获取可用资源"""
+        tool_info = []
+        for tool in self._all_tools:
+            tool_info.append({
+                "name": getattr(tool, 'name', None) or getattr(tool, '__name__', 'unknown'),
+                "description": getattr(tool, 'description', '')
+            })
+        
         return {
-            "tools": self._tools_info,
+            "tools": tool_info,
             "agents": [
                 {"name": agent.config.name, "role": agent.config.role.value}
                 for agent in self.sub_agents.values()
-            ],
-            "skills": self._skills_info
+            ]
         }

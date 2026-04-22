@@ -1,123 +1,109 @@
 """
 技能API测试脚本
-验证技能管理API是否正常工作
+测试技能加载、执行和管理功能
 """
+import asyncio
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from skills import (
-    load_skills_from_directory, get_all_skills, 
-    create_skill, get_skill, update_skill, delete_skill, toggle_skill
+from skills.loader import (
+    load_skills_from_directory,
+    get_all_skills,
+    get_skill,
+    create_skill,
+    update_skill,
+    delete_skill,
+    toggle_skill,
+    create_skill_template
 )
-import asyncio
 from skills.executor import execute_skill
 
 
-def test_skill_loading():
-    """测试技能加载"""
-    print("=== 测试技能加载 ===")
+async def test_load_skills():
+    """测试加载技能"""
+    print("=== 测试加载技能 ===")
     
-    # 加载技能
-    skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills", "skills_dir")
+    skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills", "skills_dir")
     skills = load_skills_from_directory(skills_dir)
     
-    print(f"已加载技能数量: {len(skills)}")
+    print(f"从目录加载的技能数量: {len(skills)}")
     for skill in skills:
-        print(f"  - {skill.name}: {skill.description}")
-    
-    return skills
+        print(f"\n技能名称: {skill.name}")
+        print(f"描述: {skill.description}")
+        print(f"版本: {skill.version}")
+        print(f"分类: {skill.category}")
+        print(f"启用: {skill.enabled}")
+        print(f"参数: {skill.parameters}")
+        print(f"技能目录: {skill.skill_dir}")
 
 
-def test_skill_operations():
-    """测试技能操作"""
-    print("\n=== 测试技能操作 ===")
+async def test_execute_skill():
+    """测试执行技能"""
+    print("\n=== 测试执行技能 ===")
     
-    # 创建技能
+    skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills", "skills_dir")
+    load_skills_from_directory(skills_dir)
+    
+    result = await execute_skill("WeatherQuery", city="北京", days=3)
+    print(f"执行结果 - 成功: {result.success}")
+    if result.success:
+        print(f"输出内容:\n{result.output}")
+    else:
+        print(f"错误信息: {result.error}")
+
+
+async def test_skill_management():
+    """测试技能管理功能"""
+    print("\n=== 测试技能管理 ===")
+    
+    print("\n1. 创建技能（内存中）:")
     skill = create_skill(
         name="TestSkill",
         description="测试技能",
-        category="general",
-        parameters=[
-            {"name": "input", "type": "string", "description": "输入内容", "required": True}
-        ],
-        script="result = f'测试技能执行，输入: {parameters.get(\"input\", \"\")}'\nreturn result"
+        category="test",
+        parameters=[{"name": "input", "type": "string", "required": True}]
     )
-    print(f"创建技能: {skill.name}")
+    print(f"   创建成功: {skill.name}")
     
-    # 获取技能
-    retrieved = get_skill("TestSkill")
-    print(f"获取技能: {retrieved.name}")
+    print("\n2. 获取技能:")
+    skill = get_skill("TestSkill")
+    print(f"   获取成功: {skill.name}")
     
-    # 更新技能
-    updated = update_skill(
-        name="TestSkill",
-        description="更新后的测试技能",
-        category="productivity"
-    )
-    print(f"更新技能: {updated.name}, 描述: {updated.description}")
+    print("\n3. 更新技能:")
+    updated = update_skill("TestSkill", description="更新后的描述")
+    print(f"   更新成功: {updated.description}")
     
-    # 切换状态
+    print("\n4. 切换状态:")
     toggle_skill("TestSkill")
-    toggled = get_skill("TestSkill")
-    print(f"切换状态后: enabled={toggled.enabled}")
+    skill = get_skill("TestSkill")
+    print(f"   当前状态: {skill.enabled}")
     
-    # 删除技能
-    delete_skill("TestSkill")
-    deleted = get_skill("TestSkill")
-    print(f"删除后获取: {deleted}")
+    print("\n5. 删除技能:")
+    success = delete_skill("TestSkill")
+    print(f"   删除成功: {success}")
+    
+    print("\n6. 验证删除:")
+    skill = get_skill("TestSkill")
+    print(f"   技能是否存在: {skill is not None}")
 
 
-async def test_skill_execution():
-    """测试技能执行"""
-    print("\n=== 测试技能执行 ===")
+async def test_create_template():
+    """测试创建技能模板"""
+    print("\n=== 测试创建技能模板 ===")
     
-    # 创建一个可执行的技能
-    create_skill(
-        name="Calculator",
-        description="简单计算器",
-        category="general",
-        parameters=[
-            {"name": "num1", "type": "int", "description": "第一个数字", "required": True},
-            {"name": "num2", "type": "int", "description": "第二个数字", "required": True},
-            {"name": "operation", "type": "string", "description": "操作: add, subtract, multiply, divide", "required": True}
-        ],
-        script="""
-num1 = parameters.get('num1', 0)
-num2 = parameters.get('num2', 0)
-operation = parameters.get('operation', 'add')
-
-if operation == 'add':
-    result = num1 + num2
-elif operation == 'subtract':
-    result = num1 - num2
-elif operation == 'multiply':
-    result = num1 * num2
-elif operation == 'divide':
-    if num2 == 0:
-        result = '错误: 除数不能为零'
-    else:
-        result = num1 / num2
-else:
-    result = f'未知操作: {operation}'
-
-return f'{num1} {operation} {num2} = {result}'
-"""
-    )
+    skills_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "skills", "skills_dir")
+    success = create_skill_template(skills_dir, "MyNewSkill")
+    print(f"创建模板成功: {success}")
     
-    # 执行技能
-    result = await execute_skill("Calculator", num1=10, num2=5, operation="add")
-    print(f"执行加法: 10 + 5 = {result.output}")
-    
-    result = await execute_skill("Calculator", num1=10, num2=5, operation="multiply")
-    print(f"执行乘法: 10 * 5 = {result.output}")
-    
-    # 清理
-    delete_skill("Calculator")
+    template_path = os.path.join(skills_dir, "my_new_skill", "SKILL.md")
+    if os.path.exists(template_path):
+        print(f"模板文件已创建: {template_path}")
 
 
 if __name__ == "__main__":
-    test_skill_loading()
-    test_skill_operations()
-    asyncio.run(test_skill_execution())
-    print("\n=== 所有测试完成 ===")
+    asyncio.run(test_load_skills())
+    asyncio.run(test_execute_skill())
+    asyncio.run(test_skill_management())
+    asyncio.run(test_create_template())

@@ -36,7 +36,6 @@ class ChatService:
         # 获取或创建会话
         session = self.session_manager.get_session(session_id)
         if not session:
-            # 如果会话不存在，创建新会话
             session = self.session_manager.create_session(
                 user_id=user_id,
                 max_context_length=10
@@ -52,19 +51,21 @@ class ChatService:
         if not router_agent:
             raise RuntimeError("无法创建 RouterAgent")
         
-        # 添加用户消息到会话（用于兼容现有数据模型）
-        session.add_message(MessageRole.USER, message)
+        # 添加用户消息到 Session（单一数据源）
+        await session.add_message_with_summary(MessageRole.USER, message)
         
-        # 使用 RouterAgent 进行流式对话
+        # 获取上下文（包含摘要）
+        context = session.get_context_messages()
+        
+        # 使用 RouterAgent 进行流式对话（传入上下文）
         full_content = ""
         thinking_content = ""
         
         try:
-            async for event in router_agent.stream_chat(message):
+            async for event in router_agent.stream_process(message, context):
                 event_type = event["event"]
                 event_data = event["data"]
                 
-                # 转换 TeamAgent 事件为前端兼容格式
                 if event_type == "start":
                     yield self._format_sse_event("start", {
                         "message": f"开始生成回答 - {event_data.get('agent', 'AI助手')}"
@@ -96,13 +97,50 @@ class ChatService:
                 elif event_type == "error":
                     yield self._format_sse_event("error", event_data)
             
-            # 保存AI回复到会话
+            # 保存AI回复到 Session
             if full_content:
-                session.add_message(MessageRole.ASSISTANT, full_content)
+                await session.add_message_with_summary(MessageRole.ASSISTANT, full_content)
                 self.session_manager._save_session(session)
             
         except Exception as e:
             yield self._format_sse_event("error", {"message": str(e)})
+    
+    async def chat(
+        self,
+        session_id: str,
+        message: str,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        非流式聊天
+        """
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            session = self.session_manager.create_session(
+                user_id=user_id,
+                max_context_length=10
+            )
+            session_id = session.session_id
+        
+        router_agent = self.session_manager.get_router_agent(session_id)
+        if not router_agent:
+            raise RuntimeError("无法创建 RouterAgent")
+        
+        await session.add_message_with_summary(MessageRole.USER, message)
+        context = session.get_context_messages()
+        
+        response = await router_agent.process(message, context)
+        
+        if response.content:
+            await session.add_message_with_summary(MessageRole.ASSISTANT, response.content)
+            self.session_manager._save_session(session)
+        
+        return {
+            "content": response.content,
+            "thinking": response.thinking,
+            "agent_name": response.agent_name,
+            "session_id": session_id
+        }
     
     def _format_sse_event(self, event: str, data: Dict[str, Any]) -> str:
         """

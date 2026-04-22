@@ -8,7 +8,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents import RouterAgent, RouteDecision
+from agents import RouterAgent
 from skills import load_skills_from_directory, execute_skill, get_all_skills
 
 
@@ -26,22 +26,10 @@ async def test_router_agent():
     resources = router_agent.get_available_resources()
     print(f"可用工具: {[t['name'] for t in resources.get('tools', [])]}")
     print(f"可用子智能体: {[a['name'] for a in resources.get('agents', [])]}")
-    print(f"可用技能: {[s['name'] for s in resources.get('skills', [])]}")
     
-    print("\n3. 测试手动路由决策:")
-    test_decision = RouteDecision(
-        target_type="skill",
-        target_name="WeatherQuery",
-        confidence=0.9,
-        reasoning="用户请求查询天气，使用天气查询技能",
-        parameters={"city": "上海", "days": 2}
-    )
-    
-    response = await router_agent._execute_decision(test_decision)
-    print(f"   决策类型: {test_decision.target_type}")
-    print(f"   目标名称: {test_decision.target_name}")
+    print("\n3. 测试对话:")
+    response = await router_agent.chat("你好")
     print(f"   响应内容: {response.content}")
-    print(f"   思考过程: {response.thinking}")
 
 
 async def test_skill_system():
