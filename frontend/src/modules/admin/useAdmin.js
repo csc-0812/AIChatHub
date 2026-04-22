@@ -16,9 +16,6 @@ export function useAdmin() {
   })
   const llmModels = ref([])
   const activeModelId = ref(null)
-  
-  // 新增状态
-  const tools = ref([])
   const sessions = ref([])
   const skills = ref([])
   const systemConfig = ref({
@@ -235,16 +232,6 @@ export function useAdmin() {
     } catch (error) {
       if (error.response && await handleUnauthorized(error.response, onLogout)) return
       console.error('加载模型配置失败:', error)
-    }
-  }
-
-  async function loadTools(onLogout) {
-    try {
-      const data = await adminApi.getTools()
-      tools.value = data
-    } catch (error) {
-      if (error.response && await handleUnauthorized(error.response, onLogout)) return
-      console.error('加载工具列表失败:', error)
     }
   }
 
@@ -617,7 +604,6 @@ export function useAdmin() {
     stats,
     llmModels,
     activeModelId,
-    tools,
     sessions,
     skills,
     systemConfig,
@@ -659,7 +645,6 @@ export function useAdmin() {
     loadDashboard,
     loadUsers,
     loadLLMModels,
-    loadTools,
     loadSessions,
     loadSystemConfig,
     loadSkills,

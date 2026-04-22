@@ -8,7 +8,6 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from agents import RouterAgent, AgentConfig, AgentRole
-from tools import get_all_tools, get_tool
 from shared.utils.redis_client import redis_client
 from .models import ChatMessage, ChatSession, MessageRole
 
@@ -184,26 +183,7 @@ class SessionManager:
         session.updated_at = datetime.now()
         self._save_session(session)
         return session
-    
-    def get_available_tools(self) -> List[Dict[str, str]]:
-        """获取所有可用的工具列表"""
-        tools = get_all_tools()
-        return [
-            {
-                "name": getattr(tool, 'name', tool.__name__),
-                "description": getattr(tool, 'description', '')
-            }
-            for tool in tools
-        ]
-    
-    def get_session_agent_tools(self, session_id: str) -> Dict[str, Any]:
-        """获取会话中智能体的工具配置"""
-        router_agent = self.get_router_agent(session_id)
-        if not router_agent:
-            return {}
-        
-        return router_agent.get_available_resources()
-    
+
     def get_all_sessions(self) -> List[Dict[str, Any]]:
         """获取所有会话（管理员功能）"""
         pattern = f"{self.session_prefix}*"

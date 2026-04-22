@@ -1,8 +1,7 @@
 """
-搜索工具模板
-用于查询网络信息
+SubAgent 级别工具
+这些工具仅供 SubAgent 使用，Router 不直接调用
 """
-from typing import Optional
 from langchain_core.tools import tool
 
 
@@ -18,3 +17,6 @@ def web_search(query: str) -> str:
         搜索结果字符串
     """
     return f"搜索结果: 关于 '{query}' 的信息（模拟搜索结果）"
+
+
+AGENT_TOOLS = [web_search]

@@ -35,13 +35,7 @@
         >
           ⚙️ 模型配置
         </div>
-        <div 
-          class="menu-item" 
-          :class="{ active: currentTab === 'tools' }"
-          @click="currentTab = 'tools'"
-        >
-          🛠️ 工具管理
-        </div>
+        
         <div 
           class="menu-item" 
           :class="{ active: currentTab === 'skills' }"
@@ -230,45 +224,6 @@
             </table>
             <div v-if="llmModels.length === 0" class="empty-state">
               暂无模型配置，请点击"添加模型"按钮创建
-            </div>
-          </div>
-        </div>
-
-        <!-- 工具管理 -->
-        <div v-if="currentTab === 'tools'" class="tab-content">
-          <div class="section-header">
-            <h2>工具管理</h2>
-          </div>
-          <div class="table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>工具名称</th>
-                  <th>描述</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="tool in tools" :key="tool.name">
-                  <td>{{ tool.name }}</td>
-                  <td>{{ tool.description }}</td>
-                  <td>
-                    <span class="status-badge active">可用</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <div v-if="tools.length === 0" class="empty-state">
-              暂无可用工具
-            </div>
-          </div>
-          <div class="config-form" style="margin-top: 20px;">
-            <h3>工具配置说明</h3>
-            <div class="info-box">
-              <p><strong>web_search</strong> - 网络搜索工具，用于获取最新信息</p>
-              <p><strong>calculator</strong> - 计算器工具，用于数学计算</p>
-              <p><strong>file_write</strong> - 文件写入工具，用于保存内容到文件</p>
-              <p><strong>skill_execute</strong> - Skill执行工具，用于执行自定义技能</p>
             </div>
           </div>
         </div>
@@ -788,7 +743,6 @@ export default {
     this.loadDashboard(this.handleLogout)
     this.loadUsers(this.handleLogout)
     this.loadLLMModels(this.handleLogout)
-    this.loadTools(this.handleLogout)
     this.loadSkills(this.handleLogout)
     this.loadSessions(this.handleLogout)
     this.loadSystemConfig(this.handleLogout)

@@ -1,6 +1,6 @@
 """
-计算器工具模板
-用于数学计算
+Router 级别工具
+这些工具可以被 RouterAgent 直接调用
 """
 from langchain_core.tools import tool
 
@@ -21,3 +21,6 @@ def calculator(expression: str) -> str:
         return f"计算结果: {expression} = {result}"
     except Exception as e:
         return f"计算错误: {str(e)}"
+
+
+ROUTER_TOOLS = [calculator]

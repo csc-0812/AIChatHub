@@ -242,20 +242,6 @@ export async function activateLLMModel(modelId) {
 }
 
 /**
- * 获取工具列表
- */
-export async function getTools() {
-  const response = await request('/admin/tools')
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || '获取工具列表失败')
-  }
-
-  return response.json()
-}
-
-/**
  * 获取会话列表
  */
 export async function getSessions() {
@@ -320,21 +306,22 @@ export async function updateSystemConfig(configData) {
  * 获取技能列表
  */
 export async function getSkills() {
-  const response = await request('/admin/skills')
+  const response = await request('/api/skills')
 
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.detail || '获取技能列表失败')
   }
 
-  return response.json()
+  const result = await response.json()
+  return result.skills || result
 }
 
 /**
  * 创建技能
  */
 export async function createSkill(skillData) {
-  const response = await request('/admin/skills', {
+  const response = await request('/api/skills', {
     method: 'POST',
     body: JSON.stringify(skillData)
   })
@@ -351,7 +338,7 @@ export async function createSkill(skillData) {
  * 更新技能
  */
 export async function updateSkill(skillName, skillData) {
-  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}`, {
+  const response = await request(`/api/skills/${encodeURIComponent(skillName)}`, {
     method: 'PUT',
     body: JSON.stringify(skillData)
   })
@@ -368,7 +355,7 @@ export async function updateSkill(skillName, skillData) {
  * 删除技能
  */
 export async function deleteSkill(skillName) {
-  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}`, {
+  const response = await request(`/api/skills/${encodeURIComponent(skillName)}`, {
     method: 'DELETE'
   })
 
@@ -384,8 +371,8 @@ export async function deleteSkill(skillName) {
  * 切换技能启用/禁用状态
  */
 export async function toggleSkill(skillName) {
-  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}/toggle`, {
-    method: 'POST'
+  const response = await request(`/api/skills/${encodeURIComponent(skillName)}/toggle`, {
+    method: 'PATCH'
   })
 
   if (!response.ok) {
@@ -400,9 +387,9 @@ export async function toggleSkill(skillName) {
  * 执行技能测试
  */
 export async function testSkill(skillName, parameters) {
-  const response = await request(`/admin/skills/${encodeURIComponent(skillName)}/test`, {
+  const response = await request('/api/skills/execute', {
     method: 'POST',
-    body: JSON.stringify(parameters)
+    body: JSON.stringify({ skill_name: skillName, parameters })
   })
 
   if (!response.ok) {

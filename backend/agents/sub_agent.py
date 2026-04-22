@@ -1,12 +1,22 @@
 """
 子智能体模板
 作为路由智能体的子节点，处理特定领域的任务
+
+工具管理：
+- 通过 AgentConfig.tools 指定工具名称列表
+- 工具在 _initialize_tools 中通过 tool_map 映射加载
+- 支持动态添加/移除工具
+
+支持的工具：
+- web_search: 网络搜索（来自 agent_tools）
+- calculator: 计算器（来自 router_tools）
 """
 from typing import List, Dict, Any, Optional, AsyncGenerator
 
 from .base_agent import BaseAgent
 from .models import AgentConfig, AgentResponse
-from tools import get_tool_instances
+from tools.router_tools import ROUTER_TOOLS
+from tools.agent_tools import AGENT_TOOLS
 
 
 class SubAgent(BaseAgent):
@@ -14,6 +24,9 @@ class SubAgent(BaseAgent):
     子智能体模板
     
     自定义子智能体可以继承此类并扩展功能。
+    
+    Args:
+        config: AgentConfig 配置对象，包含名称、描述、工具列表等
     """
     
     def __init__(self, config: AgentConfig):
@@ -25,9 +38,14 @@ class SubAgent(BaseAgent):
         self._initialize_langchain_agent()
     
     def _initialize_tools(self):
-        """初始化工具"""
-        if self.config.tools:
-            self._tools = get_tool_instances(self.config.tools)
+        """初始化工具 - 根据 config.tools 加载对应的工具实例"""
+        if not self.config.tools:
+            return
+        
+        all_tools = ROUTER_TOOLS + AGENT_TOOLS
+        tool_map = {getattr(t, 'name', t.__name__): t for t in all_tools}
+        
+        self._tools = [tool_map[name] for name in self.config.tools if name in tool_map]
     
     def _initialize_langchain_agent(self):
         """初始化 LangChain Agent（如果有工具）"""
@@ -105,23 +123,23 @@ class SubAgent(BaseAgent):
         }
     
     def get_tools(self) -> List[str]:
-        """获取工具列表"""
+        """获取当前加载的工具名称列表"""
         return [getattr(t, 'name', t.__name__) for t in self._tools]
     
     def add_tool(self, tool_name: str):
-        """添加工具"""
+        """动态添加工具"""
         if tool_name not in self.config.tools:
             self.config.tools.append(tool_name)
             self._initialize_tools()
             self._initialize_langchain_agent()
     
     def remove_tool(self, tool_name: str):
-        """移除工具"""
+        """动态移除工具"""
         if tool_name in self.config.tools:
             self.config.tools.remove(tool_name)
             self._initialize_tools()
             self._initialize_langchain_agent()
     
     def has_tools(self) -> bool:
-        """是否有工具"""
+        """检查是否有加载的工具"""
         return len(self._tools) > 0

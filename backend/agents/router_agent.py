@@ -2,17 +2,19 @@
 路由智能体 - 基于 LangChain Agent
 
 作为核心路由中心，负责问题解析和任务分发。
-支持将子 Agent 和 OpenClaw Skill 作为工具调用。
 
-架构设计：
-- 使用 LangChain create_agent 作为核心执行引擎
-- 将子 Agent、工具、技能统一作为 Tool 注册
-- LLM 自动决定调用哪个工具/Agent/技能
+工具管理：
+- Router 级别工具：直接在 _native_tools 中定义（如 calculator）
+- 子智能体工具：通过 SubAgentTool 统一管理
+- 技能工具：从 skills_dir 加载 OpenClaw 技能
 
-支持的工具类型：
-1. 原生工具（calculator, web_search 等）
-2. 子智能体（Researcher, Analyzer 等）
-3. OpenClaw 技能（通过技能目录加载）
+子智能体管理：
+- 支持动态注册/注销子智能体
+- 默认注册 Researcher 和 Analyzer
+
+上下文管理：
+- 使用外部传入的 context（来自 ChatSession）
+- 不再维护内部的 message_history
 """
 import uuid
 import os
@@ -25,7 +27,7 @@ from .base_agent import BaseAgent
 from .models import AgentConfig, AgentResponse, AgentRole
 from .sub_agent import SubAgent
 from .langchain_adapter import SubAgentTool
-from tools import get_all_tools, get_tool_instances
+from tools.router_tools import ROUTER_TOOLS
 from skills import load_skills_as_tools
 
 
@@ -42,10 +44,6 @@ class RouterAgent(BaseAgent):
     - 支持动态注册子agent
     - 支持动态添加工具
     - 支持加载 OpenClaw 技能
-    
-    上下文管理：
-    - 使用外部传入的 context（来自 ChatSession）
-    - 不再维护内部的 message_history
     """
     
     def __init__(self):
@@ -72,8 +70,8 @@ class RouterAgent(BaseAgent):
         self._build_agent()
     
     def _load_resources(self):
-        """加载可用资源：工具和技能"""
-        self._native_tools = get_tool_instances(get_all_tools())
+        """加载可用资源：Router级别工具和技能"""
+        self._native_tools = ROUTER_TOOLS
         
         skills_dir = os.path.join(os.path.dirname(__file__), "..", "skills", "skills_dir")
         skills_dir = os.path.abspath(skills_dir)
@@ -101,7 +99,7 @@ class RouterAgent(BaseAgent):
     
     @property
     def _all_tools(self) -> List[Any]:
-        """获取所有工具（原生工具 + 技能工具 + 子agent工具）"""
+        """获取所有工具（子agent工具 + 原生工具 + 技能工具）"""
         return [self._sub_agent_tool] + self._native_tools + self._skill_tools
     
     def _build_tool_descriptions(self) -> str:
@@ -120,7 +118,7 @@ class RouterAgent(BaseAgent):
         return "\n".join(tool_descriptions)
     
     def _build_agent(self):
-        """构建 Agent"""
+        """构建 LangChain Agent"""
         from shared.utils.llm_client import llm_client
         
         llm_client._ensure_model_initialized()
@@ -133,19 +131,13 @@ class RouterAgent(BaseAgent):
         system_prompt = """
 你是一个智能路由助手，负责根据用户的问题选择最合适的工具或智能体来处理。
 
-## 你的任务：
-分析用户的问题，选择最合适的工具/智能体/技能来解决问题。
-
 ## 可用工具：
 {tool_descriptions}
 
-## 输出格式：
-请直接根据工具的格式要求输出，不要添加额外的解释。
-
 ## 注意：
-1. 如果需要实时信息，使用 web_search 工具
-2. 如果需要计算，使用 calculator 工具
-3. 如果需要专业知识，调用 sub_agent 工具并指定子智能体名称（如 Researcher, Analyzer）
+1. 如果需要实时信息，调用 sub_agent 工具并指定 Researcher
+2. 如果需要计算，使用 calculator 工具或调用 Analyzer
+3. 如果需要专业知识，调用 sub_agent 工具并指定相应的子智能体
 4. 如果需要特定功能，调用对应的技能
 5. 如果不需要工具，可以直接回答用户的问题
 """
@@ -162,7 +154,7 @@ class RouterAgent(BaseAgent):
         self._agent = create_agent(llm=llm, tools=self._all_tools, prompt=prompt)
     
     def register_sub_agent(self, config: AgentConfig) -> str:
-        """注册子智能体（作为工具使用）"""
+        """注册子智能体"""
         agent_id = str(uuid.uuid4())
         sub_agent = SubAgent(config)
         self.sub_agents[agent_id] = sub_agent
@@ -189,12 +181,12 @@ class RouterAgent(BaseAgent):
         return None
     
     def add_tool(self, tool):
-        """添加自定义工具"""
+        """动态添加自定义工具"""
         self._native_tools.append(tool)
         self._build_agent()
     
     def remove_tool(self, tool_name: str):
-        """移除工具"""
+        """动态移除工具"""
         self._native_tools = [
             t for t in self._native_tools 
             if getattr(t, 'name', '') != tool_name
@@ -227,7 +219,7 @@ class RouterAgent(BaseAgent):
         return await self._direct_answer(message, context)
     
     async def chat(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AgentResponse:
-        """处理用户消息（兼容旧接口，需要传入上下文）"""
+        """处理用户消息（兼容旧接口）"""
         return await self.process(message, context)
     
     async def stream_process(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
@@ -302,12 +294,12 @@ class RouterAgent(BaseAgent):
         }
     
     async def stream_chat(self, message: str, context: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
-        """流式处理用户消息（兼容旧接口，需要传入上下文）"""
+        """流式处理用户消息（兼容旧接口）"""
         async for event in self.stream_process(message, context):
             yield event
     
     def get_available_resources(self) -> Dict[str, Any]:
-        """获取可用资源"""
+        """获取可用资源信息"""
         tool_info = []
         for tool in self._all_tools:
             tool_info.append({
