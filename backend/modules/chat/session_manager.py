@@ -6,7 +6,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from shared.agent import TeamAgent, AgentConfig, AgentRole
+from shared.agent import create_router_agent, RouterAgent
 from shared.utils.redis_client import redis_client
 from .models import ChatMessage, ChatSession, MessageRole
 
@@ -18,8 +18,7 @@ class SessionManager:
         self.redis = redis_client
         self.session_prefix = "chat:session:"
         self.user_sessions_prefix = "chat:user_sessions:"
-        # 内存中缓存 TeamAgent 实例
-        self._team_agents: Dict[str, TeamAgent] = {}
+        self._router_agents: Dict[str, RouterAgent] = {}
     
     def _get_session_key(self, session_id: str) -> str:
         """获取会话在Redis中的key"""
@@ -40,48 +39,31 @@ class SessionManager:
             max_context_length=max_context_length
         )
         
-        # 保存到Redis
         self._save_session(session)
         
-        # 添加到用户的会话列表
         if user_id:
             self._add_session_to_user_list(user_id, session_id)
         
-        # 创建对应的 TeamAgent
-        self._create_team_agent(session_id, max_context_length)
+        self._create_router_agent(session_id)
         
         return session
     
-    def _create_team_agent(self, session_id: str, max_context_length: int = 10):
-        """为会话创建 TeamAgent"""
-        # 创建默认智能体配置
-        default_config = AgentConfig(
-            role=AgentRole.COORDINATOR,
-            name="AI助手",
-            description="负责协调和回答问题",
-            context_window=max_context_length
-        )
-        
-        team_agent = TeamAgent()
-        team_agent.session_id = session_id
-        team_agent.add_agent(default_config)
-        
-        self._team_agents[session_id] = team_agent
-        return team_agent
+    def _create_router_agent(self, session_id: str):
+        """为会话创建RouterAgent"""
+        agent = create_router_agent()
+        self._router_agents[session_id] = agent
+        return agent
     
-    def get_team_agent(self, session_id: str) -> Optional[TeamAgent]:
-        """获取会话的 TeamAgent"""
-        # 先从内存获取
-        if session_id in self._team_agents:
-            return self._team_agents[session_id]
+    def get_router_agent(self, session_id: str) -> Optional[RouterAgent]:
+        """获取会话的RouterAgent"""
+        if session_id in self._router_agents:
+            return self._router_agents[session_id]
         
-        # 获取会话信息
         session = self.get_session(session_id)
         if not session:
             return None
         
-        # 重新创建 TeamAgent
-        return self._create_team_agent(session_id, session.max_context_length)
+        return self._create_router_agent(session_id)
     
     def get_session(self, session_id: str) -> Optional[ChatSession]:
         """获取会话"""
@@ -97,15 +79,13 @@ class SessionManager:
         self.redis.set(
             session_key, 
             session.model_dump_json(),
-            expire=7 * 24 * 3600  # 7天过期
+            expire=7 * 24 * 3600
         )
     
     def _add_session_to_user_list(self, user_id: str, session_id: str):
         """添加会话到用户的会话列表"""
         user_sessions_key = f"{self.user_sessions_prefix}{user_id}"
-        # 使用Redis集合存储用户的会话ID
         self.redis.client.sadd(user_sessions_key, session_id)
-        # 设置过期时间
         self.redis.client.expire(user_sessions_key, 7 * 24 * 3600)
     
     def add_message_to_session(
@@ -140,7 +120,6 @@ class SessionManager:
                     "message_count": len(session.messages)
                 })
         
-        # 按更新时间排序
         sessions.sort(key=lambda x: x["updated_at"], reverse=True)
         return sessions
     
@@ -150,14 +129,11 @@ class SessionManager:
         if not session:
             return False
         
-        # 删除会话数据
         self.redis.delete(self._get_session_key(session_id))
         
-        # 从内存中移除 TeamAgent
-        if session_id in self._team_agents:
-            del self._team_agents[session_id]
+        if session_id in self._router_agents:
+            del self._router_agents[session_id]
         
-        # 从用户的会话列表中移除
         if user_id:
             user_sessions_key = f"{self.user_sessions_prefix}{user_id}"
             self.redis.client.srem(user_sessions_key, session_id)
@@ -174,11 +150,6 @@ class SessionManager:
         session.updated_at = datetime.now()
         self._save_session(session)
         
-        # 同时清空 TeamAgent 的历史
-        team_agent = self.get_team_agent(session_id)
-        if team_agent:
-            team_agent.clear_history()
-        
         return session
     
     def rename_session(self, session_id: str, new_title: str) -> Optional[ChatSession]:
@@ -191,3 +162,11 @@ class SessionManager:
         session.updated_at = datetime.now()
         self._save_session(session)
         return session
+
+
+session_manager = SessionManager()
+
+
+def get_session_manager() -> SessionManager:
+    """获取会话管理器实例"""
+    return session_manager

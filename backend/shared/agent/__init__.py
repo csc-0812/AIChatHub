@@ -1,10 +1,13 @@
 """
-Agent 模块
-提供智能体功能，支持团队协作模式
+Agent Module
+提供智能体功能，支持Router路由模式
 """
-from .models import AgentRole, AgentConfig, AgentMessage, AgentResponse, TeamConfig
+from .models import AgentRole, AgentConfig, AgentMessage, AgentResponse
 from .base_agent import BaseAgent
-from .team_agent import TeamAgent
+from .router_agent import RouterAgent, create_router_agent
+from .tools import BUILTIN_TOOLS, get_all_tools
+from .prompts import router_prompt, DEFAULT_SYSTEM_PROMPT
+from .middleware import AgentLoggingMiddleware, create_default_middleware
 
 __all__ = [
     # 数据模型
@@ -12,8 +15,18 @@ __all__ = [
     "AgentConfig",
     "AgentMessage",
     "AgentResponse",
-    "TeamConfig",
     # 智能体类
     "BaseAgent",
-    "TeamAgent"
+    "RouterAgent",
+    # Router Agent 工厂函数
+    "create_router_agent",
+    # 工具
+    "BUILTIN_TOOLS",
+    "get_all_tools",
+    # 提示词
+    "router_prompt",
+    "DEFAULT_SYSTEM_PROMPT",
+    # 中间件
+    "AgentLoggingMiddleware",
+    "create_default_middleware",
 ]

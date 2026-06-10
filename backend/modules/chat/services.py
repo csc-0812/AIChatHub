@@ -3,14 +3,14 @@
 处理智能体对话逻辑
 """
 import json
-from typing import AsyncGenerator, Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any, Optional, List
 
 from .session_manager import SessionManager
 from .models import MessageRole
 
 
 class ChatService:
-    """聊天服务 - 使用 TeamAgent 处理消息"""
+    """聊天服务 - 使用 RouterAgent 处理消息"""
     
     def __init__(self):
         self.session_manager = SessionManager()
@@ -23,7 +23,7 @@ class ChatService:
     ) -> AsyncGenerator[str, None]:
         """
         流式聊天，返回SSE格式数据
-        使用 TeamAgent 处理消息
+        使用 RouterAgent 处理消息
         
         Args:
             session_id: 会话ID
@@ -33,10 +33,8 @@ class ChatService:
         Yields:
             SSE格式的事件数据
         """
-        # 获取或创建会话
         session = self.session_manager.get_session(session_id)
         if not session:
-            # 如果会话不存在，创建新会话
             session = self.session_manager.create_session(
                 user_id=user_id,
                 max_context_length=10
@@ -47,62 +45,46 @@ class ChatService:
                 "title": session.title
             })
         
-        # 获取 TeamAgent
-        team_agent = self.session_manager.get_team_agent(session_id)
-        if not team_agent:
-            raise RuntimeError("无法创建 TeamAgent")
-        
-        # 添加用户消息到会话（用于兼容现有数据模型）
         session.add_message(MessageRole.USER, message)
         
-        # 使用 TeamAgent 进行流式对话
+        messages = self._build_messages(session)
+        
+        agent = self.session_manager.get_router_agent(session_id)
+        if not agent:
+            yield self._format_sse_event("error", {"message": "无法创建智能体"})
+            return
+        
         full_content = ""
-        thinking_content = ""
         
         try:
-            async for event in team_agent.stream_chat(message):
-                event_type = event["event"]
-                event_data = event["data"]
-                
-                # 转换 TeamAgent 事件为前端兼容格式
-                if event_type == "start":
-                    yield self._format_sse_event("start", {
-                        "message": f"开始生成回答 - {event_data.get('agent', 'AI助手')}"
-                    })
-                
-                elif event_type == "thinking":
-                    thinking_content = event_data.get("content", "")
-                    yield self._format_sse_event("thinking", event_data)
-                
-                elif event_type == "thinking_chunk":
-                    yield self._format_sse_event("thinking_chunk", event_data)
-                
-                elif event_type == "answer":
-                    full_content = event_data.get("content", "")
-                    yield self._format_sse_event("answer", event_data)
-                
-                elif event_type == "answer_chunk":
-                    yield self._format_sse_event("answer_chunk", event_data)
-                
-                elif event_type == "done":
-                    full_content = event_data.get("answer", "")
-                    thinking_content = event_data.get("thinking", "")
-                    yield self._format_sse_event("done", {
-                        "session_id": session_id,
-                        "thinking": thinking_content,
-                        "answer": full_content
-                    })
-                
-                elif event_type == "error":
-                    yield self._format_sse_event("error", event_data)
+            async for event in agent.stream(messages):
+                if "content" in event:
+                    content = event["content"]
+                    full_content = content
+                    yield self._format_sse_event("answer_chunk", {"chunk": content})
             
-            # 保存AI回复到会话
+            yield self._format_sse_event("done", {
+                "session_id": session_id,
+                "thinking": "",
+                "answer": full_content
+            })
+            
             if full_content:
                 session.add_message(MessageRole.ASSISTANT, full_content)
                 self.session_manager._save_session(session)
             
         except Exception as e:
             yield self._format_sse_event("error", {"message": str(e)})
+    
+    def _build_messages(self, session) -> List[Dict[str, Any]]:
+        """构建消息列表"""
+        messages = []
+        for msg in session.messages[-session.max_context_length:]:
+            messages.append({
+                "role": "user" if msg.role == MessageRole.USER else "assistant",
+                "content": msg.content
+            })
+        return messages
     
     def _format_sse_event(self, event: str, data: Dict[str, Any]) -> str:
         """
@@ -118,5 +100,4 @@ class ChatService:
         return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-# 创建全局聊天服务实例
 chat_service = ChatService()
