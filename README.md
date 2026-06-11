@@ -50,7 +50,12 @@ AIChatHub/
 │   ├── public/config.json      # 前端配置
 │   └── package.json            # 依赖配置
 ├── config/
-│   └── config.yaml             # 全局配置（LLM/Redis/JWT/Docker）
+│   └── config.yaml             # 全局配置（LLM/Redis/JWT）
+├── docker/
+│   └── docker-compose.yml      # Docker Compose 编排配置
+├── scripts/
+│   ├── deploy.sh               # 一键部署脚本 (Linux/Mac/WSL)
+│   └── deploy.ps1              # 一键部署脚本 (Windows)
 └── docs/
     └── test-questions.md       # 测试问题集
 ```
@@ -96,20 +101,54 @@ AIChatHub/
 
 ## 快速开始
 
-### 环境要求
+### 方式一：Docker 一键部署（推荐）
+
+无需安装 Python/Node/Redis，只需 Docker 即可启动全部服务。
+
+```bash
+# Windows
+.\scripts\deploy.ps1
+
+# Linux / Mac / WSL
+bash scripts/deploy.sh
+```
+
+部署完成后：
+
+| 服务 | 地址 |
+|------|------|
+| 前端页面 | http://localhost:3000 |
+| 后端 API | http://localhost:8000 |
+| API 文档 | http://localhost:8000/docs |
+
+```bash
+# 创建超级管理员（首次使用）
+docker compose -f docker/docker-compose.yml exec backend uv run python scripts/make_super_admin.py
+
+# 常用命令
+docker compose -f docker/docker-compose.yml logs -f     # 查看日志
+docker compose -f docker/docker-compose.yml down         # 停止服务
+docker compose -f docker/docker-compose.yml up -d --build  # 重新构建
+```
+
+> 模型配置在系统内通过管理面板动态配置，无需在部署时设置 API Key。如需自定义前端端口，创建 `.env` 文件写入 `FRONTEND_PORT=8080` 即可。
+
+### 方式二：本地开发启动
+
+#### 环境要求
 
 - Python 3.12+
 - Node.js 18+
 - Redis 服务器
 
-### 1. 克隆项目
+#### 1. 克隆项目
 
 ```bash
 git clone <repository-url>
 cd AIChatHub
 ```
 
-### 2. 配置
+#### 2. 配置
 
 编辑 `config/config.yaml`：
 
@@ -133,7 +172,7 @@ backend:
 
 > 支持通过环境变量覆盖配置：`OPENAI_API_KEY`、`JWT_SECRET_KEY`、`REDIS_HOST`、`REDIS_PORT`。
 
-### 3. 启动后端
+#### 3. 启动后端
 
 ```bash
 cd backend
@@ -148,7 +187,7 @@ uv run uvicorn main:app --reload
 后端服务：http://localhost:8000  
 API 文档：http://localhost:8000/docs
 
-### 4. 启动前端
+#### 4. 启动前端
 
 ```bash
 cd frontend
@@ -162,7 +201,7 @@ npm run dev
 
 前端服务：http://localhost:5173
 
-### 5. 创建超级管理员（可选）
+#### 5. 创建超级管理员（可选）
 
 ```bash
 cd backend
@@ -231,23 +270,48 @@ uv run python scripts/make_super_admin.py
 
 ## Docker 部署
 
-项目配置文件已内置 Docker Compose 编排配置。
+项目已内置完整的 Docker 部署方案，包含 Redis + 后端 + 前端三个服务，Nginx 反向代理统一入口。
 
-```bash
-# 构建并启动所有服务
-docker compose up -d
-
-# 查看服务状态
-docker compose ps
-
-# 停止服务
-docker compose down
+```
+浏览器 → localhost:3000 (Nginx)
+              ├── /           → Vue 静态页面
+              ├── /api/*      → 代理到 backend:8000
+              └── /uploads/*  → 代理到 backend:8000
 ```
 
-服务端口映射：
-- 后端：`8000`
-- 前端：`5173`
-- Redis：`6379`
+### 一键部署
+
+```bash
+# Windows
+.\scripts\deploy.ps1
+
+# Linux / Mac / WSL
+bash scripts/deploy.sh
+```
+
+### 手动部署
+
+```bash
+# 构建并启动
+docker compose -f docker/docker-compose.yml up -d --build
+
+# 查看状态
+docker compose -f docker/docker-compose.yml ps
+
+# 停止服务
+docker compose -f docker/docker-compose.yml down
+```
+
+### 文件说明
+
+| 文件 | 作用 |
+|------|------|
+| `docker/docker-compose.yml` | 服务编排配置 |
+| `backend/Dockerfile` | 后端镜像（Python 3.13 + uv） |
+| `frontend/Dockerfile` | 前端镜像（Node 构建 → Nginx 运行） |
+| `frontend/nginx.conf` | Nginx 配置（API 代理 + SSE 支持） |
+| `scripts/deploy.sh` | Linux/Mac/WSL 一键部署 |
+| `scripts/deploy.ps1` | Windows 一键部署 |
 
 ## 开发计划
 
