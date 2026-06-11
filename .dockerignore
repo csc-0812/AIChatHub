@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Node
+node_modules
+frontend/node_modules
+frontend/dist
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+*.egg-info
+.venv
+venv
+
+# uv
+backend/.venv
+
+# Logs
+*.log
+backend/logs/
+
+# Uploads (use volume)
+backend/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+docker/
+Dockerfile*
+
+# Docs
+docs/
+*.md
+
+# Env
+.env
+.env.local

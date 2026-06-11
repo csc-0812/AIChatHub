@@ -1,19 +1,18 @@
 """
 配置文件加载器
-支持从YAML文件加载配置，并支持环境变量覆盖
+支持从 YAML 文件加载配置，并支持环境变量覆盖
 """
 import os
-import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import yaml
 
 
 class ConfigLoader:
-    """配置加载器"""
+    """配置加载器（单例模式）"""
     
     _instance = None
-    _config = None
+    _config: Dict[str, Any] = None
     
     def __new__(cls):
         if cls._instance is None:
@@ -26,14 +25,12 @@ class ConfigLoader:
     
     def _get_config_path(self) -> Path:
         """获取配置文件路径"""
-        # 首先检查环境变量
         config_path = os.getenv("CONFIG_PATH")
         if config_path:
             return Path(config_path)
-        
-        # 默认路径：项目根目录下的config/config.yaml
-        # 从当前文件位置推算项目根目录
-        # backend/shared/utils/config_loader.py -> backend -> Demo
+
+        # 默认路径：项目根目录下的 config/config.yaml
+        # backend/shared/utils/config_loader.py -> backend -> 项目根目录
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent.parent
         return project_root / "config" / "config.yaml"
@@ -48,41 +45,33 @@ class ConfigLoader:
         with open(config_path, "r", encoding="utf-8") as f:
             self._config = yaml.safe_load(f)
         
-        # 应用环境变量覆盖
         self._apply_env_overrides()
     
     def _apply_env_overrides(self):
-        """应用环境变量覆盖配置"""
-        # OpenAI配置环境变量
+        """环境变量覆盖配置文件中的值"""
+        # OpenAI 配置
         if os.getenv("OPENAI_API_KEY"):
-            self._config["llm"]["openai"]["api_key"] = os.getenv("OPENAI_API_KEY")
+            self._config.setdefault("llm", {}).setdefault("openai", {})["api_key"] = os.getenv("OPENAI_API_KEY")
         if os.getenv("OPENAI_BASE_URL"):
-            self._config["llm"]["openai"]["base_url"] = os.getenv("OPENAI_BASE_URL")
+            self._config.setdefault("llm", {}).setdefault("openai", {})["base_url"] = os.getenv("OPENAI_BASE_URL")
         if os.getenv("OPENAI_MODEL"):
-            self._config["llm"]["openai"]["model"] = os.getenv("OPENAI_MODEL")
+            self._config.setdefault("llm", {}).setdefault("openai", {})["model"] = os.getenv("OPENAI_MODEL")
         
-        # 数据库配置环境变量
+        # Redis 配置
         if os.getenv("REDIS_HOST"):
-            self._config["backend"]["database"]["host"] = os.getenv("REDIS_HOST")
+            self._config.setdefault("backend", {}).setdefault("database", {})["host"] = os.getenv("REDIS_HOST")
         if os.getenv("REDIS_PORT"):
-            self._config["backend"]["database"]["port"] = int(os.getenv("REDIS_PORT"))
+            self._config.setdefault("backend", {}).setdefault("database", {})["port"] = int(os.getenv("REDIS_PORT"))
         if os.getenv("REDIS_PASSWORD"):
-            self._config["backend"]["database"]["password"] = os.getenv("REDIS_PASSWORD")
+            self._config.setdefault("backend", {}).setdefault("database", {})["password"] = os.getenv("REDIS_PASSWORD")
         
-        # JWT配置环境变量
+        # JWT 配置
         if os.getenv("JWT_SECRET_KEY"):
-            self._config["backend"]["auth"]["secret_key"] = os.getenv("JWT_SECRET_KEY")
+            self._config.setdefault("backend", {}).setdefault("auth", {})["secret_key"] = os.getenv("JWT_SECRET_KEY")
     
     def get(self, key_path: str, default: Any = None) -> Any:
         """
-        获取配置值
-        
-        Args:
-            key_path: 配置键路径，使用点号分隔，如 "llm.openai.model"
-            default: 默认值
-        
-        Returns:
-            配置值
+        获取配置值，支持点号分隔的路径，如 "llm.openai.model"
         """
         keys = key_path.split(".")
         value = self._config
@@ -96,25 +85,21 @@ class ConfigLoader:
         return value
     
     def get_llm_config(self) -> Dict[str, Any]:
-        """获取LLM配置"""
+        """获取 LLM 配置"""
         return self._config.get("llm", {})
     
     def get_backend_config(self) -> Dict[str, Any]:
         """获取后端配置"""
         return self._config.get("backend", {})
     
-    def get_frontend_config(self) -> Dict[str, Any]:
-        """获取前端配置"""
-        return self._config.get("frontend", {})
-    
-    def get_docker_config(self) -> Dict[str, Any]:
-        """获取Docker配置"""
-        return self._config.get("docker", {})
+    def get_app_config(self) -> Dict[str, Any]:
+        """获取应用配置"""
+        return self._config.get("app", {})
     
     def reload(self):
         """重新加载配置"""
         self._load_config()
 
 
-# 创建全局配置加载器实例
+# 全局配置加载器实例
 config_loader = ConfigLoader()

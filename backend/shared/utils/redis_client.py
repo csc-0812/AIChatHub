@@ -1,12 +1,15 @@
 import redis
 from typing import Optional, Any
+from shared.utils.config_loader import config_loader
+
 
 class RedisClient:
-    def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0):
+    def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password: Optional[str] = None):
         self.client = redis.Redis(
             host=host,
             port=port,
             db=db,
+            password=password,
             decode_responses=True
         )
     
@@ -45,5 +48,17 @@ class RedisClient:
         """删除哈希表字段"""
         return self.client.hdel(name, *keys)
 
-# 创建全局Redis客户端实例
-redis_client = RedisClient()
+
+def _create_redis_client() -> RedisClient:
+    """根据配置文件创建 Redis 客户端实例"""
+    db_config = config_loader.get("backend.database", {})
+    return RedisClient(
+        host=db_config.get("host", "localhost"),
+        port=db_config.get("port", 6379),
+        db=db_config.get("db", 0),
+        password=db_config.get("password"),
+    )
+
+
+# 全局 Redis 客户端实例（从配置文件读取参数）
+redis_client = _create_redis_client()
