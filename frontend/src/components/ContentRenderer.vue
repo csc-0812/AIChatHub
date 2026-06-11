@@ -27,6 +27,12 @@ export default {
 
       if (!content) return segments
 
+      // 移除 tool_calls 原始 XML 标签（防御：正常应由后端 Agent 拦截，
+      // 此处在极端情况下兜底，避免 LLM 的工具调用文本泄露到前端展示）
+      content = content.replace(/<tool_calls>[\s\S]*?<\/tool_calls>/g, '')
+      content = content.replace(/<tool[\s]+call[\s\S]*?<\/tool_call[\s]*>/g, '')
+      content = content.replace(/<\/?tool_calls\/?\s*>/g, '')
+
       // HTML 实体解码（多层解码，处理 LLM 可能的重复转义）
       for (let i = 0; i < 3; i++) {
         content = content.replace(/&lt;chart&gt;/g, '<chart>')
@@ -60,20 +66,40 @@ export default {
           })
         }
 
-        let jsonStr = match[1].trim()
-        // 清理 JSON 字符串中可能被 LLM 添加的多余内容
-        // 有些 LLM 会在 JSON 前后添加说明文字，尝试提取纯 JSON
-        const jsonTryList = [jsonStr]
-        // 尝试提取 { ... } 或 [ ... ] 部分
-        const jsonObjMatch = jsonStr.match(/\{[\s\S]*\}/)
-        if (jsonObjMatch) jsonTryList.push(jsonObjMatch[0])
+        let rawJson = match[1].trim()
+
+        // 构建多级解码候选列表，按优先级排列
+        const candidates = []
+
+        // 候选0：原始内容
+        candidates.push(rawJson)
+
+        // 候选1：单层反斜杠转义引号 \" → "
+        let s1 = rawJson.replace(/\\"/g, '"')
+        candidates.push(s1)
+
+        // 候选2：双层反斜杠转义 \\\" → "
+        let s2 = rawJson.replace(/\\\\\"/g, '"').replace(/\\"/g, '"')
+        candidates.push(s2)
+
+        // 候选3：去掉所有反斜杠后尝试（极端回退）
+        let s3 = rawJson.replace(/\\/g, '')
+        candidates.push(s3)
+
+        // 对每个候选都尝试：整体解析 + 正则提取子 JSON 解析
+        const allTries = []
+        for (const c of candidates) {
+          allTries.push(c)
+          const sub = c.match(/\{[\s\S]*\}/)
+          if (sub) allTries.push(sub[0])
+        }
 
         let parsed = false
-        for (const tryStr of jsonTryList) {
+        for (const tryStr of allTries) {
           try {
             const chartData = JSON.parse(tryStr)
             // 验证基本结构
-            if (chartData && typeof chartData === 'object') {
+            if (chartData && typeof chartData === 'object' && chartData.chartType) {
               segments.push({
                 type: 'chart',
                 data: chartData
@@ -82,7 +108,7 @@ export default {
               break
             }
           } catch (e) {
-            // 继续尝试下一个候选
+            // 继续下一个候选
           }
         }
 

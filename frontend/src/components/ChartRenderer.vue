@@ -66,6 +66,76 @@
       </div>
     </div>
 
+    <!-- 雷达图：SVG 多边形 -->
+    <div v-else-if="type === 'radar'" class="radar-wrapper">
+      <svg :viewBox="`0 0 ${svgRadarW} ${svgRadarH}`" class="radar-svg">
+        <!-- 网格多边形 -->
+        <polygon
+          v-for="lvl in radarGridLevels"
+          :key="'grid-'+lvl"
+          :points="radarGridPoints(lvl)"
+          fill="none"
+          stroke="#475569"
+          stroke-width="0.8"
+          stroke-dasharray="3,3"
+        />
+        <!-- 轴线 -->
+        <line
+          v-for="(_, i) in radarLabels"
+          :key="'axis-'+i"
+          :x1="rCx" :y1="rCy"
+          :x2="radarAxisEndX(i)" :y2="radarAxisEndY(i)"
+          stroke="#475569"
+          stroke-width="0.8"
+        />
+        <!-- 数据集多边形 -->
+        <polygon
+          v-for="(_, di) in radarDatasets"
+          :key="'poly-'+di"
+          :points="radarPoints(di)"
+          :fill="getRadarFill(di)"
+          :stroke="getRadarStroke(di)"
+          stroke-width="2"
+          stroke-linejoin="round"
+        >
+          <animate attributeName="opacity" from="0" to="1" dur="0.6s" />
+        </polygon>
+        <!-- 数据点圆 -->
+        <circle
+          v-for="(pt, pi) in radarDots"
+          :key="'dot-'+pi"
+          :cx="pt.x" :cy="pt.y" r="3.5"
+          :fill="pt.color"
+          stroke="#1e293b" stroke-width="1.5"
+        />
+        <!-- 轴标签 -->
+        <text
+          v-for="(pos, i) in radarLabelPositions"
+          :key="'lbl-'+i"
+          :x="pos.x" :y="pos.y"
+          :text-anchor="pos.anchor"
+          :dy="pos.dy"
+          class="radar-label-txt"
+        >{{ pos.label }}</text>
+        <!-- 值标签 -->
+        <text
+          v-for="(dot, i) in radarDots"
+          :key="'val-'+i"
+          :x="dot.labelX" :y="dot.labelY"
+          text-anchor="middle"
+          class="radar-val-txt"
+        >{{ dot.label }}</text>
+      </svg>
+
+      <!-- 底部图例 -->
+      <div class="radar-legend-grid">
+        <div v-for="(ds, idx) in radarDatasets" :key="'leg-'+idx" class="legend-cell">
+          <span class="legend-dot" :style="{ background: getRadarStroke(idx) }"></span>
+          <span class="legend-name">{{ ds.label || '系列' + (idx+1) }}</span>
+        </div>
+      </div>
+    </div>
+
     <div v-else class="chart-fallback">不支持的图表类型: {{ type }}</div>
   </div>
 </template>
@@ -89,6 +159,80 @@ export default {
     type() { return (this.cd.chartType || 'bar').toLowerCase() },
     labels() { return this.cd.labels || [] },
     rawDatasets() { return this.cd.datasets || [] },
+
+    /* ── 雷达图参数 ── */
+    radarGridLevels() { return 5 },
+    svgRadarW() { return 290 },
+    svgRadarH() { return 270 },
+    rCx() { return 125 },
+    rCy() { return 120 },
+    rR() { return 82 },
+
+    radarLabels() { return this.labels },
+    radarDatasets() { return this.rawDatasets },
+    radarMax() {
+      let m = 1
+      for (const ds of this.rawDatasets) {
+        for (const v of (ds.data || [])) {
+          const n = Number(v); if (n > m) m = n
+        }
+      }
+      return Math.ceil(m / 10) * 10 || 10 // 向上取整到十位数
+    },
+
+    /** 单个数据集的多边形坐标 */
+    radarPoints() {
+      const res = []
+      for (let di = 0; di < this.radarDatasets.length; di++) {
+        res.push(this._computePolygon(di))
+      }
+      return res
+    },
+
+    /** 数据点坐标 + 值标签 */
+    radarDots() {
+      const dots = []
+      const labels = this.radarLabels
+      const n = labels.length
+      const max = this.radarMax
+      for (let di = 0; di < this.radarDatasets.length; di++) {
+        const ds = this.radarDatasets[di]
+        const color = COLOR_PAIRS[di % COLOR_PAIRS.length][0]
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 / n) * i - Math.PI / 2
+          const val = Number(ds.data?.[i]) || 0
+          const r = max > 0 ? (val / max) * this.rR : 0
+          const baseX = this.rCx + r * Math.cos(angle)
+          const baseY = this.rCy + r * Math.sin(angle)
+          // 值标签偏移
+          const labelOff = 12
+          dots.push({
+            x: baseX, y: baseY,
+            labelX: this.rCx + (r + labelOff) * Math.cos(angle),
+            labelY: this.rCy + (r + labelOff) * Math.sin(angle) - 2,
+            label: this.formatValue(val),
+            color
+          })
+        }
+      }
+      return dots
+    },
+
+    /** 轴标签定位 */
+    radarLabelPositions() {
+      const n = this.radarLabels.length
+      const R = this.rR; const cx = this.rCx; const cy = this.rCy
+      const off = 26
+      return this.radarLabels.map((lbl, i) => {
+        const angle = (Math.PI * 2 / n) * i - Math.PI / 2
+        const cos = Math.cos(angle), sin = Math.sin(angle)
+        const x = cx + (R + off) * cos
+        const y = cy + (R + off) * sin
+        const anchor = cos > 0.05 ? 'start' : cos < -0.05 ? 'end' : 'middle'
+        const dy = sin > 0.06 ? '0.2em' : sin < -0.06 ? '1.2em' : '0.35em'
+        return { x, y, label: lbl, anchor, dy }
+      })
+    },
 
     /* SVG 画布参数 */
     svgW() { return 260 },
@@ -206,6 +350,52 @@ export default {
       const n = Number(val)
       if (!Number.isFinite(n)) return val
       return n % 1 === 0 ? n.toLocaleString() : n.toFixed(1)
+    },
+
+    /* ── 雷达图方法 ── */
+    _computePolygon(di) {
+      const ds = this.radarDatasets[di]
+      if (!ds) return ''
+      const n = this.radarLabels.length
+      const max = this.radarMax
+      const cx = this.rCx; const cy = this.rCy; const R = this.rR
+      const pts = []
+      for (let i = 0; i < n; i++) {
+        const angle = (Math.PI * 2 / n) * i - Math.PI / 2
+        const val = Number(ds.data?.[i]) || 0
+        const r = max > 0 ? (val / max) * R : 0
+        pts.push(`${(cx + r * Math.cos(angle)).toFixed(1)},${(cy + r * Math.sin(angle)).toFixed(1)}`)
+      }
+      return pts.join(' ')
+    },
+
+    radarGridPoints(lvl) {
+      const n = this.radarLabels.length
+      const r = this.rR * lvl / this.radarGridLevels
+      const cx = this.rCx; const cy = this.rCy
+      const pts = []
+      for (let i = 0; i < n; i++) {
+        const angle = (Math.PI * 2 / n) * i - Math.PI / 2
+        pts.push(`${(cx + r * Math.cos(angle)).toFixed(1)},${(cy + r * Math.sin(angle)).toFixed(1)}`)
+      }
+      return pts.join(' ')
+    },
+
+    radarAxisEndX(i) {
+      const angle = (Math.PI * 2 / this.radarLabels.length) * i - Math.PI / 2
+      return (this.rCx + this.rR * Math.cos(angle)).toFixed(1)
+    },
+    radarAxisEndY(i) {
+      const angle = (Math.PI * 2 / this.radarLabels.length) * i - Math.PI / 2
+      return (this.rCy + this.rR * Math.sin(angle)).toFixed(1)
+    },
+
+    getRadarStroke(idx) {
+      return COLOR_PAIRS[idx % COLOR_PAIRS.length][0]
+    },
+    getRadarFill(idx) {
+      const c = this.getRadarStroke(idx)
+      return c + '26' // 约 15% 透明度
     }
   }
 }
@@ -253,6 +443,15 @@ export default {
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .legend-name { font-size: 11px; font-weight: 500; color: #cbd5e1; max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .legend-pct { font-size: 10px; color: #94a3b8; font-weight: 600; min-width: 28px; text-align: right; }
+
+/* ===== 雷达图 ===== */
+.radar-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.radar-svg { width: 100%; max-width: 320px; height: auto; overflow: visible; }
+
+.radar-label-txt { font-size: 10px; font-weight: 600; fill: #cbd5e1; }
+.radar-val-txt { font-size: 9px; font-weight: 700; fill: #e2e8f0; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+
+.radar-legend-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; max-width: 320px; margin-top: 2px; }
 
 .chart-fallback { padding: 16px; text-align: center; color: #94a3b8; font-style: italic; }
 </style>

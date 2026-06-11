@@ -45,8 +45,3 @@ router_prompt = SystemMessage(content="""
 
 请用专业但友好的语气与用户交流，回复时适当使用 Markdown 格式增强可读性。
 """)
-
-
-DEFAULT_SYSTEM_PROMPT = """
-你是一个 helpful 的AI助手，请友好地回答用户的问题。
-"""

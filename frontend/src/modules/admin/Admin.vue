@@ -429,7 +429,7 @@ export default {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f8fafc;
+  background-color: #0f172a;
 }
 
 .admin-header {
@@ -496,8 +496,8 @@ export default {
 
 .admin-sidebar {
   width: 220px;
-  background-color: white;
-  border-right: 1px solid #e2e8f0;
+  background-color: #1e293b;
+  border-right: 1px solid #334155;
   padding: 16px 0;
   flex-shrink: 0;
 }
@@ -509,19 +509,19 @@ export default {
   cursor: pointer;
   transition: all 0.15s ease;
   font-size: 14px;
-  color: #475569;
+  color: #94a3b8;
   font-weight: 500;
 }
 
 .menu-item:hover {
-  background-color: #f1f5f9;
-  color: #0f172a;
+  background-color: #334155;
+  color: #e2e8f0;
 }
 
 .menu-item.active {
-  background-color: #fffbeb;
+  background-color: rgba(217, 119, 6, 0.12);
   color: #d97706;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: none;
 }
 
 .admin-main {
@@ -532,7 +532,7 @@ export default {
 
 .tab-content h2 {
   margin-bottom: 24px;
-  color: #0f172a;
+  color: #f1f5f9;
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.3px;
@@ -545,16 +545,16 @@ export default {
 }
 
 .stat-card {
-  background: white;
+  background: #1e293b;
   padding: 24px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
   text-align: center;
   transition: box-shadow 0.2s ease;
 }
 
 .stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .stat-value {
@@ -568,21 +568,21 @@ export default {
 
 .stat-label {
   font-size: 13px;
-  color: #64748b;
+  color: #94a3b8;
   font-weight: 500;
 }
 
 .table-container {
-  background: white;
+  background: #1e293b;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
   overflow: hidden;
 }
 
 .empty-state {
   padding: 48px;
   text-align: center;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 14px;
 }
 
@@ -595,13 +595,13 @@ export default {
 .data-table td {
   padding: 14px 16px;
   text-align: left;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #334155;
 }
 
 .data-table th {
-  background-color: #f8fafc;
+  background-color: #1e293b;
   font-weight: 600;
-  color: #475569;
+  color: #94a3b8;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -609,11 +609,11 @@ export default {
 
 .data-table td {
   font-size: 14px;
-  color: #334155;
+  color: #cbd5e1;
 }
 
 .data-table tbody tr:hover {
-  background-color: #fafbfc;
+  background-color: rgba(51, 65, 85, 0.4);
 }
 
 .role-badge, .status-badge {
@@ -625,28 +625,28 @@ export default {
 }
 
 .role-badge.user {
-  background-color: #eff6ff;
-  color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.15);
+  color: #60a5fa;
 }
 
 .role-badge.admin {
-  background-color: #fffbeb;
-  color: #d97706;
+  background-color: rgba(217, 119, 6, 0.15);
+  color: #fbbf24;
 }
 
 .role-badge.super_admin {
-  background-color: #fdf2f8;
-  color: #db2777;
+  background-color: rgba(219, 39, 119, 0.15);
+  color: #f472b6;
 }
 
 .status-badge.active {
-  background-color: #ecfdf5;
-  color: #059669;
+  background-color: rgba(5, 150, 105, 0.15);
+  color: #34d399;
 }
 
 .status-badge.disabled {
-  background-color: #fef2f2;
-  color: #dc2626;
+  background-color: rgba(220, 38, 38, 0.15);
+  color: #f87171;
 }
 
 .action-buttons {
@@ -663,72 +663,73 @@ export default {
   cursor: pointer;
   font-weight: 500;
   transition: all 0.15s ease;
-  background: #f1f5f9;
-  color: #475569;
+  background: rgba(51, 65, 85, 0.5);
+  color: #94a3b8;
 }
 
 .btn-small:hover {
-  background: #e2e8f0;
+  background: #475569;
+  color: #e2e8f0;
 }
 
 .btn-role {
-  background: #fffbeb;
-  color: #d97706;
-  border-color: #fde68a;
+  background: rgba(217, 119, 6, 0.15);
+  color: #fbbf24;
+  border-color: rgba(217, 119, 6, 0.3);
 }
 
 .btn-role:hover {
-  background: #fef3c7;
+  background: rgba(217, 119, 6, 0.25);
 }
 
 .btn-disable {
-  background: #fff7ed;
-  color: #ea580c;
-  border-color: #fed7aa;
+  background: rgba(234, 88, 12, 0.15);
+  color: #fb923c;
+  border-color: rgba(234, 88, 12, 0.3);
 }
 
 .btn-disable:hover {
-  background: #ffedd5;
+  background: rgba(234, 88, 12, 0.25);
 }
 
 .btn-enable {
-  background: #ecfdf5;
-  color: #059669;
-  border-color: #a7f3d0;
+  background: rgba(5, 150, 105, 0.15);
+  color: #34d399;
+  border-color: rgba(5, 150, 105, 0.3);
 }
 
 .btn-enable:hover {
-  background: #d1fae5;
+  background: rgba(5, 150, 105, 0.25);
 }
 
 .btn-reset {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #bfdbfe;
+  background: rgba(37, 99, 235, 0.15);
+  color: #60a5fa;
+  border-color: rgba(37, 99, 235, 0.3);
 }
 
 .btn-reset:hover {
-  background: #dbeafe;
+  background: rgba(37, 99, 235, 0.25);
 }
 
 .btn-delete {
-  background: #fef2f2;
-  color: #dc2626;
-  border-color: #fecaca;
+  background: rgba(220, 38, 38, 0.15);
+  color: #f87171;
+  border-color: rgba(220, 38, 38, 0.3);
 }
 
 .btn-delete:hover {
-  background: #fee2e2;
+  background: rgba(220, 38, 38, 0.25);
 }
 
 .btn-edit {
-  background: #f5f3ff;
-  color: #7c3aed;
-  border-color: #ddd6fe;
+  background: rgba(124, 58, 237, 0.15);
+  color: #a78bfa;
+  border-color: rgba(124, 58, 237, 0.3);
 }
 
 .btn-edit:hover {
-  background: #ede9fe;
+  background: rgba(124, 58, 237, 0.25);
 }
 
 .section-header {
@@ -756,10 +757,10 @@ export default {
 }
 
 .config-form {
-  background: white;
+  background: #1e293b;
   padding: 32px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
   max-width: 500px;
 }
 
@@ -771,7 +772,7 @@ export default {
   display: block;
   margin-bottom: 6px;
   font-weight: 500;
-  color: #475569;
+  color: #94a3b8;
   font-size: 13px;
 }
 
@@ -779,19 +780,20 @@ export default {
 .form-group select {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #334155;
   border-radius: 8px;
   font-size: 14px;
-  color: #334155;
+  color: #cbd5e1;
   transition: all 0.2s ease;
   font-family: inherit;
+  background-color: #0f172a;
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
   border-color: #d97706;
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
 }
 
 .btn-save {
@@ -820,7 +822,7 @@ export default {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -829,24 +831,24 @@ export default {
 }
 
 .modal {
-  background: white;
+  background: #1e293b;
   padding: 32px;
   border-radius: 16px;
   width: 90%;
   max-width: 420px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid #334155;
 }
 
 .modal h3 {
   margin-bottom: 8px;
-  color: #0f172a;
+  color: #f1f5f9;
   font-size: 18px;
   font-weight: 600;
 }
 
 .modal p {
-  color: #64748b;
+  color: #94a3b8;
   margin-bottom: 20px;
   font-size: 14px;
 }
@@ -869,12 +871,13 @@ export default {
 }
 
 .btn-cancel {
-  background: #f1f5f9;
-  color: #475569;
+  background: rgba(51, 65, 85, 0.5);
+  color: #94a3b8;
 }
 
 .btn-cancel:hover {
-  background: #e2e8f0;
+  background: #475569;
+  color: #e2e8f0;
 }
 
 .btn-confirm {

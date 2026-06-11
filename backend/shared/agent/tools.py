@@ -4,6 +4,7 @@ Agent Tools Module - 计划一体化平台
 """
 
 import json
+import logging
 from typing import List, Dict, Any, Optional, Type
 
 from langchain_core.tools import BaseTool
@@ -14,6 +15,8 @@ from .tools_data import (
     get_simulation_data,
     get_root_cause_data,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -97,6 +100,12 @@ class PlanReportTool(BaseTool):
         dimensions: Optional[List[str]],
         metrics: Optional[List[str]],
     ) -> str:
+        params = {
+            "report_type": report_type, "start_date": start_date,
+            "end_date": end_date, "dimensions": dimensions, "metrics": metrics,
+        }
+        logger.info(f"[Tool: {self.name}] Called with: {json.dumps(params, ensure_ascii=False, default=str)}")
+
         data = get_report_data(report_type, start_date, end_date, dimensions, metrics)
 
         lines = [f"## {data['report_type']}", ""]
@@ -119,7 +128,9 @@ class PlanReportTool(BaseTool):
         }
         render = dispatch.get(report_type, self._render_execution)
         lines.append(render(data))
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.info(f"[Tool: {self.name}] Result ({len(result)} chars): {result[:300]}{'...' if len(result) > 300 else ''}")
+        return result
 
     # ── 各报表渲染 ────────────────────────────────────────────
 
@@ -327,6 +338,9 @@ class PlanSimulationTool(BaseTool):
     # ── 核心逻辑 ──────────────────────────────────────────────
 
     def _build_simulation(self, scenario: str, variables: Dict[str, Any]) -> str:
+        params = {"scenario": scenario, "variables": variables}
+        logger.info(f"[Tool: {self.name}] Called with: {json.dumps(params, ensure_ascii=False, default=str)}")
+
         data = get_simulation_data(scenario, variables)
 
         lines = [
@@ -359,7 +373,9 @@ class PlanSimulationTool(BaseTool):
             "- 推演结果为模拟值，实际决策请参考实时系统数据",
         ])
 
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.info(f"[Tool: {self.name}] Result ({len(result)} chars): {result[:300]}{'...' if len(result) > 300 else ''}")
+        return result
 
     # ── 各场景渲染 ────────────────────────────────────────────
 
@@ -559,6 +575,9 @@ class RootCauseTool(BaseTool):
     # ── 核心逻辑 ──────────────────────────────────────────────
 
     def _build_analysis(self, problem: str, indicators: Optional[List[str]]) -> str:
+        params = {"problem": problem, "indicators": indicators}
+        logger.info(f"[Tool: {self.name}] Called with: {json.dumps(params, ensure_ascii=False, default=str)}")
+
         data = get_root_cause_data(problem, indicators)
 
         lines = [
@@ -587,7 +606,9 @@ class RootCauseTool(BaseTool):
         else:
             lines.append(self._render_delay_analysis(data))
 
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        logger.info(f"[Tool: {self.name}] Result ({len(result)} chars): {result[:300]}{'...' if len(result) > 300 else ''}")
+        return result
 
     # ── 各分析类型渲染 ────────────────────────────────────────
 

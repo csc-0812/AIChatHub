@@ -144,7 +144,7 @@
         
         <!-- 加载状态 -->
         <div v-if="isLoading" class="loading-indicator">
-          <span class="loading-dots">AI 正在思考</span>
+          <span class="loading-dots">AI 正在生成</span>
         </div>
       </div>
       
@@ -208,10 +208,19 @@
             </button>
             <button
               class="toolbar-btn send-btn"
+              v-if="!isLoading"
               @click="sendMessage(handleLogout)"
-              :disabled="isLoading || (!newMessage.trim() && selectedFiles.length === 0) || !currentSessionId"
+              :disabled="(!newMessage.trim() && selectedFiles.length === 0) || !currentSessionId"
             >
               ➤
+            </button>
+            <button
+              class="toolbar-btn stop-btn"
+              v-else
+              @click="stopMessage"
+              title="停止生成"
+            >
+              ■
             </button>
           </div>
         </div>
@@ -1130,6 +1139,22 @@ export default {
 .toolbar-btn.send-btn:hover:not(:disabled) {
   background: rgba(217, 119, 6, 0.15);
   color: #fbbf24;
+}
+
+.toolbar-btn.stop-btn {
+  color: #ef4444;
+  font-size: 14px;
+  animation: stopPulse 1.5s ease-in-out infinite;
+}
+
+.toolbar-btn.stop-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+@keyframes stopPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 /* 响应式设计 */

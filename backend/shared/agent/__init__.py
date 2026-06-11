@@ -14,7 +14,7 @@ from .tools import (
     SIMULATION_TYPE_MAP,
     RCA_TYPE_MAP,
 )
-from .prompts import router_prompt, DEFAULT_SYSTEM_PROMPT
+from .prompts import router_prompt
 from .middleware import AgentLoggingMiddleware, create_default_middleware
 
 __all__ = [

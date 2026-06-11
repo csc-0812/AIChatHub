@@ -14,6 +14,7 @@ export function useChat() {
   const editingSessionId = ref(null)
   const editingTitle = ref('')
   const selectedFiles = ref([])
+  const abortController = ref(null)     // 用于取消正在进行的流式请求
 
   // 计算属性
   const hasSessions = computed(() => sessions.value.length > 0)
@@ -237,6 +238,9 @@ export function useChat() {
     })
 
     isLoading.value = true
+    
+    // 创建 AbortController，用于支持手动停止
+    abortController.value = new AbortController()
 
     // 创建AI消息占位
     currentAssistantMessage.value = {
@@ -251,7 +255,8 @@ export function useChat() {
     try {
       const response = await chatApi.sendChatMessage(
         currentSessionId.value,
-        userMessage
+        userMessage,
+        abortController.value.signal
       )
 
       if (await handleUnauthorized(response, onLogout)) {
@@ -263,27 +268,60 @@ export function useChat() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      // 读取SSE流
+      // 读取SSE流（带缓冲区，防止chunk边界截断事件）
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
+      let buffer = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        // 最后一行可能不完整，保留到下次处理
+        buffer = lines.pop() || ''
 
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i]
-          if (line.startsWith('event: ')) {
-            const event = line.slice(7)
-            const dataLine = lines[i + 1]
-            if (dataLine && dataLine.startsWith('data: ')) {
-              const data = JSON.parse(dataLine.slice(6))
-              handleSSEEvent(event, data)
+        let currentEvent = null
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) {
+            // 空行表示一个 SSE 事件结束，触发处理
+            if (currentEvent && currentEvent.data) {
+              try {
+                const data = JSON.parse(currentEvent.data)
+                handleSSEEvent(currentEvent.event, data)
+              } catch (e) {
+                console.error('SSE JSON 解析失败:', e, currentEvent.data)
+              }
+              currentEvent = null
+            }
+            continue
+          }
+
+          if (trimmed.startsWith('event: ')) {
+            currentEvent = { event: trimmed.slice(7), data: '' }
+          } else if (trimmed.startsWith('data: ')) {
+            if (currentEvent) {
+              currentEvent.data = trimmed.slice(6)
             }
           }
+        }
+      }
+
+      // 处理缓冲区中可能残留的最后一个事件
+      if (buffer.trim() && buffer.includes('data: ')) {
+        try {
+          const parts = buffer.split('\n')
+          for (let i = 0; i < parts.length; i++) {
+            if (parts[i].startsWith('event: ') && parts[i + 1]?.startsWith('data: ')) {
+              const data = JSON.parse(parts[i + 1].slice(6))
+              handleSSEEvent(parts[i].slice(7), data)
+            }
+          }
+        } catch (e) {
+          console.error('SSE 残留数据解析失败:', e)
         }
       }
 
@@ -291,11 +329,29 @@ export function useChat() {
       await loadSessions(onLogout)
 
     } catch (error) {
-      console.error('聊天错误:', error)
-      currentAssistantMessage.value.content = '抱歉，发生了错误，请稍后重试。'
+      if (error.name === 'AbortError') {
+        // 用户手动停止，标记当前消息为已中止
+        if (currentAssistantMessage.value && !currentAssistantMessage.value.content) {
+          currentAssistantMessage.value.content = '（已停止生成）'
+        } else if (currentAssistantMessage.value) {
+          currentAssistantMessage.value.content += '\n\n*（已停止生成）*'
+        }
+      } else {
+        console.error('聊天错误:', error)
+        currentAssistantMessage.value.content = '抱歉，发生了错误，请稍后重试。'
+      }
     } finally {
       isLoading.value = false
+      abortController.value = null
       currentAssistantMessage.value = null
+    }
+  }
+
+  // 手动停止正在进行的流式输出
+  function stopMessage() {
+    if (abortController.value) {
+      abortController.value.abort()
+      abortController.value = null
     }
   }
 
@@ -396,6 +452,7 @@ export function useChat() {
     uploadFile,
     removeFile,
     sendMessage,
+    stopMessage,
     toggleSidebar,
     formatDate
   }

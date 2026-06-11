@@ -156,8 +156,11 @@ export async function uploadFile(file) {
 
 /**
  * 发送聊天消息（SSE流式）
+ * @param {string} sessionId
+ * @param {string} message
+ * @param {AbortSignal} [signal] - 可选 AbortController signal，用于取消请求
  */
-export function sendChatMessage(sessionId, message) {
+export function sendChatMessage(sessionId, message, signal) {
   const token = getToken()
   
   return fetch(`${API_BASE_URL}/chat/stream`, {
@@ -170,6 +173,7 @@ export function sendChatMessage(sessionId, message) {
       session_id: sessionId,
       message: message,
       stream: true
-    })
+    }),
+    signal
   })
 }
