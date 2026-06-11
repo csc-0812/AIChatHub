@@ -213,18 +213,18 @@ export default {
 
 <style scoped>
 .chart-container {
-  margin: 16px 0; padding: 20px; background: #fff;
-  border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.06);
-  border: 1px solid #eaeaea;
+  margin: 16px 0; padding: 20px; background: #1e293b;
+  border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.3);
+  border: 1px solid #334155;
 }
-.chart-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin: 0 0 14px; text-align: center; }
+.chart-title { font-size: 15px; font-weight: 600; color: #f1f5f9; margin: 0 0 14px; text-align: center; }
 
 /* ===== 柱状图 ===== */
 .css-chart { width: 100%; }
 .css-bar-row { display: flex; align-items: center; margin-bottom: 10px; gap: 12px; }
 .css-bar-row:last-child { margin-bottom: 0; }
-.css-label { flex-shrink: 0; width: 70px; text-align: right; font-size: 13px; font-weight: 500; color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.css-track { flex: 1; height: 30px; background: #ececec; border-radius: 15px; overflow: hidden; position: relative; }
+.css-label { flex-shrink: 0; width: 70px; text-align: right; font-size: 13px; font-weight: 500; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.css-track { flex: 1; height: 30px; background: #334155; border-radius: 15px; overflow: hidden; position: relative; }
 .css-fill { height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; min-width: 50px; transition: width .8s ease-out; border-radius: 15px; background: #667eea; }
 .css-value { color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
 
@@ -239,20 +239,20 @@ export default {
 }
 .pie-circle:hover {
   transform: scale(1.04);
-  box-shadow: 0 4px 14px rgba(102,126,234,.15);
+  box-shadow: 0 4px 14px rgba(102,126,234,.3);
 }
 
 /* 饼图标签文字 */
-.pie-label-txt { font-size: 10px; font-weight: 600; fill: #333; }
-.pie-label-pct { font-size: 9px; font-weight: 500; fill: #777; }
+.pie-label-txt { font-size: 10px; font-weight: 600; fill: #e2e8f0; }
+.pie-label-pct { font-size: 9px; font-weight: 500; fill: #94a3b8; }
 
 /* 图例 */
 .pie-legend-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; max-width: 320px; }
 .legend-cell { display: flex; align-items: center; gap: 3px; padding: 1px 3px; border-radius: 3px; cursor: default; transition: background .15s; }
-.legend-cell:hover { background: #f5f5fa; }
+.legend-cell:hover { background: #334155; }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.legend-name { font-size: 11px; font-weight: 500; color: #444; max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.legend-pct { font-size: 10px; color: #888; font-weight: 600; min-width: 28px; text-align: right; }
+.legend-name { font-size: 11px; font-weight: 500; color: #cbd5e1; max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-pct { font-size: 10px; color: #94a3b8; font-weight: 600; min-width: 28px; text-align: right; }
 
-.chart-fallback { padding: 16px; text-align: center; color: #999; font-style: italic; }
+.chart-fallback { padding: 16px; text-align: center; color: #94a3b8; font-style: italic; }
 </style>

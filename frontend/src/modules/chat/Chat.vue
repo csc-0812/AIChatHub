@@ -3,7 +3,6 @@
     <!-- 侧边栏 - 会话列表 -->
     <div class="sidebar" :class="{ 'sidebar-open': showSidebar }">
       <div class="sidebar-header">
-        <h2>会话列表</h2>
         <button class="new-chat-btn" @click="createNewSession(handleLogout)">
           <span>+</span> 新会话
         </button>
@@ -65,15 +64,6 @@
           ☰
         </button>
         <h1>{{ currentSessionTitle || 'AI 聊天助手' }}</h1>
-        <button 
-          class="clear-btn" 
-          @click="clearCurrentSession(handleLogout)"
-          :disabled="!currentSessionId"
-          title="清空当前会话"
-        >
-          清空
-        </button>
-        
         <!-- 个人管理下拉菜单 -->
         <div class="user-menu-container">
           <button class="user-menu-btn" @click="toggleUserMenu">
@@ -176,7 +166,7 @@
         <div class="input-row">
           <textarea
             v-model="newMessage"
-            placeholder="今天帮你做些什么？@ 引用对话文件，/ 调用技能与指令"
+            placeholder="今天帮你做些什么？"
             @keydown.enter.exact.prevent="sendMessage(handleLogout)"
             :disabled="isLoading || !currentSessionId"
             rows="1"
@@ -190,7 +180,7 @@
           <!-- 左侧：模型选择 -->
           <div class="toolbar-left">
             <div class="model-badge">
-              <span class="model-name">GPT-4o Mini</span>
+              <span class="model-name">deepseek-v4-pro</span>
               <span class="model-arrow">▼</span>
             </div>
           </div>
@@ -416,29 +406,29 @@ export default {
 /* 侧边栏 */
 .sidebar {
   width: 280px;
+  min-width: 280px;
   background-color: #1e293b;
   border-right: 1px solid #334155;
   display: flex;
   flex-direction: column;
-  transition: transform 0.3s ease;
+  transition: margin-left 0.3s ease;
+}
+
+.sidebar:not(.sidebar-open) {
+  margin-left: -280px;
 }
 
 .sidebar-header {
-  padding: 20px;
+  padding: 14px 14px;
   border-bottom: 1px solid #334155;
-}
-
-.sidebar-header h2 {
-  margin: 0 0 14px 0;
-  font-size: 16px;
-  color: #f1f5f9;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .new-chat-btn {
-  width: 100%;
-  padding: 10px;
+  flex: 1;
+  padding: 10px 12px;
   background: #d97706;
   color: white;
   border: none;
@@ -462,6 +452,25 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 8px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.session-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.session-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.session-list::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.session-list::-webkit-scrollbar-button {
+  display: none;
 }
 
 .session-item {
@@ -586,9 +595,11 @@ export default {
   color: #94a3b8;
   font-size: 20px;
   cursor: pointer;
-  display: none;
   padding: 4px;
   border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .menu-btn:hover {
@@ -602,28 +613,6 @@ export default {
   font-weight: 600;
   flex: 1;
   letter-spacing: -0.2px;
-}
-
-.clear-btn {
-  background: rgba(255, 255, 255, 0.06);
-  color: #cbd5e1;
-  border: none;
-  padding: 5px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.15s ease;
-}
-
-.clear-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: #f1f5f9;
-}
-
-.clear-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
 }
 
 /* 个人管理菜单 */
@@ -740,6 +729,25 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-button {
+  display: none;
 }
 
 .welcome-message {
@@ -1132,16 +1140,14 @@ export default {
     top: 0;
     bottom: 0;
     z-index: 100;
+    margin-left: 0;
     transform: translateX(-100%);
+    transition: transform 0.3s ease;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
   }
 
   .sidebar.sidebar-open {
     transform: translateX(0);
-  }
-
-  .menu-btn {
-    display: block;
   }
 
   .message-bubble {
