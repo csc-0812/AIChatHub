@@ -159,7 +159,9 @@
       </div>
       
       <!-- 输入区域 -->
-      <div class="chat-input">
+      <div class="chat-input" ref="chatInputRef">
+        <!-- 顶部拖拽拉宽手柄 -->
+        <div class="resize-handle" @mousedown.prevent="startResize"></div>
         <!-- 已选文件预览 -->
         <div v-if="selectedFiles.length > 0" class="selected-files">
           <div v-for="(file, index) in selectedFiles" :key="index" class="file-tag">
@@ -169,41 +171,69 @@
             <button class="remove-file" @click="removeFile(index)">×</button>
           </div>
         </div>
-        
+
+        <!-- 第一行：输入框 -->
         <div class="input-row">
-          <!-- 文件上传按钮 -->
-          <button 
-            class="upload-btn" 
-            @click="triggerFileUpload"
+          <textarea
+            v-model="newMessage"
+            placeholder="今天帮你做些什么？@ 引用对话文件，/ 调用技能与指令"
+            @keydown.enter.exact.prevent="sendMessage(handleLogout)"
             :disabled="isLoading || !currentSessionId"
-            title="上传文件或图片"
-          >
-            📎
-          </button>
-          <input 
-            ref="fileInput"
-            type="file" 
-            style="display: none"
-            accept="image/*,.txt,.md,.pdf,.json,.csv,.docx,.xlsx"
-            @change="handleFileSelect"
-            multiple
-          />
-          
-          <input 
-            type="text" 
-            v-model="newMessage" 
-            placeholder="输入消息..." 
-            @keyup.enter="sendMessage(handleLogout)"
-            :disabled="isLoading || !currentSessionId"
-          />
-          <button 
-            class="send-button" 
-            @click="sendMessage(handleLogout)" 
-            :disabled="isLoading || (!newMessage.trim() && selectedFiles.length === 0) || !currentSessionId"
-          >
-            {{ isLoading ? '发送中...' : '发送' }}
-          </button>
+            rows="1"
+            ref="textareaRef"
+            class="auto-resize-textarea"
+          ></textarea>
         </div>
+
+        <!-- 第二行：功能工具栏 - 固定在底部 -->
+        <div class="toolbar-row">
+          <!-- 左侧：模型选择 -->
+          <div class="toolbar-left">
+            <div class="model-badge">
+              <span class="model-name">GPT-4o Mini</span>
+              <span class="model-arrow">▼</span>
+            </div>
+          </div>
+
+          <!-- 右侧：操作按钮区域 -->
+          <div class="toolbar-right">
+            <button
+              class="toolbar-btn"
+              @click="triggerFileUpload"
+              :disabled="isLoading || !currentSessionId"
+              title="上传文件"
+            >
+              +
+            </button>
+            <button
+              class="toolbar-btn"
+              title="语音输入"
+              :disabled="isLoading"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+              </svg>
+            </button>
+            <button
+              class="toolbar-btn send-btn"
+              @click="sendMessage(handleLogout)"
+              :disabled="isLoading || (!newMessage.trim() && selectedFiles.length === 0) || !currentSessionId"
+            >
+              ➤
+            </button>
+          </div>
+        </div>
+
+        <input
+          ref="fileInput"
+          type="file"
+          style="display: none"
+          accept="image/*,.txt,.md,.pdf,.json,.csv,.docx,.xlsx"
+          @change="handleFileSelect"
+          multiple
+        />
       </div>
     </div>
   </div>
@@ -245,6 +275,10 @@ export default {
       return;
     }
     this.loadSessions(this.handleLogout);
+    // textarea 自动高度
+    this.$nextTick(() => {
+      this.autoResizeTextarea();
+    });
   },
   methods: {
     getRoleDisplay(role) {
@@ -324,6 +358,38 @@ export default {
 
     renderTestChart() {
       // no-op
+    },
+
+    autoResizeTextarea() {
+      const textarea = this.$refs.textareaRef;
+      if (!textarea) return;
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 200);
+      textarea.style.height = newHeight + 'px';
+    },
+
+    startResize(e) {
+      const inputEl = this.$refs.chatInputRef;
+      if (!inputEl) return;
+      const startHeight = inputEl.offsetHeight;
+      const startY = e.clientY;
+      const minHeight = 110;
+
+      const onMove = (ev) => {
+        const delta = startY - ev.clientY; // 向上拖为正
+        const newHeight = Math.max(startHeight + delta, minHeight);
+        inputEl.style.height = newHeight + 'px';
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // 拖拽结束后重新调整 textarea 高度
+        this.autoResizeTextarea();
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     }
   },
   watch: {
@@ -332,6 +398,9 @@ export default {
         this.scrollToBottom()
       },
       deep: true
+    },
+    newMessage() {
+      this.$nextTick(() => this.autoResizeTextarea());
     }
   }
 }
@@ -341,14 +410,14 @@ export default {
 .chat-container {
   display: flex;
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #0f172a;
 }
 
 /* 侧边栏 */
 .sidebar {
   width: 280px;
-  background-color: #fff;
-  border-right: 1px solid #e0e0e0;
+  background-color: #1e293b;
+  border-right: 1px solid #334155;
   display: flex;
   flex-direction: column;
   transition: transform 0.3s ease;
@@ -356,74 +425,80 @@ export default {
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #334155;
 }
 
 .sidebar-header h2 {
-  margin: 0 0 15px 0;
-  font-size: 18px;
-  color: #333;
+  margin: 0 0 14px 0;
+  font-size: 16px;
+  color: #f1f5f9;
+  font-weight: 600;
+  letter-spacing: -0.2px;
 }
 
 .new-chat-btn {
   width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 10px;
+  background: #d97706;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  transition: all 0.3s ease;
+  gap: 6px;
+  transition: all 0.2s ease;
 }
 
 .new-chat-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: #b45309;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25);
 }
 
 .session-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 8px 10px;
 }
 
 .session-item {
-  padding: 12px;
-  margin-bottom: 8px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
   border-radius: 8px;
   cursor: pointer;
   position: relative;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .session-item:hover {
-  background-color: #f5f5f5;
+  background-color: #334155;
 }
 
 .session-item.active {
-  background-color: #e8eaff;
-  border-left: 3px solid #667eea;
+  background-color: rgba(217, 119, 6, 0.12);
 }
 
 .session-title {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: #e2e8f0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 60px; /* 为操作按钮留出空间 */
+  padding-right: 60px;
+}
+
+.session-item.active .session-title {
+  color: #fbbf24;
 }
 
 .session-meta {
-  font-size: 12px;
-  color: #999;
-  margin-top: 4px;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 3px;
 }
 
 .session-actions {
@@ -433,12 +508,13 @@ export default {
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
-  transition: opacity 0.2s ease;
-  background-color: rgba(255, 255, 255, 0.9);
-  border-radius: 4px;
-  padding: 4px;
+  transition: opacity 0.15s ease;
+  background: rgba(30, 41, 59, 0.95);
+  border-radius: 6px;
+  padding: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .session-item:hover .session-actions {
@@ -448,24 +524,25 @@ export default {
 .action-btn {
   background: none;
   border: none;
-  color: #999;
-  font-size: 14px;
+  color: #94a3b8;
+  font-size: 13px;
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .action-btn:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background: #334155;
 }
 
 .rename-btn:hover {
-  color: #667eea;
+  color: #fbbf24;
 }
 
 .delete-btn:hover {
-  color: #f44336;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
 }
 
 .rename-input-container {
@@ -474,13 +551,13 @@ export default {
 
 .rename-input {
   width: 100%;
-  padding: 6px 10px;
-  border: 2px solid #667eea;
+  padding: 5px 10px;
+  border: 2px solid #d97706;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
-  background-color: white;
-  color: #333;
+  background: #0f172a;
+  color: #e2e8f0;
   box-sizing: border-box;
 }
 
@@ -490,51 +567,62 @@ export default {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: #0f172a;
 }
 
 .chat-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 15px 20px;
+  background: #0f172a;
+  color: #f1f5f9;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
-  gap: 15px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  gap: 16px;
+  border-bottom: 1px solid #1e293b;
 }
 
 .menu-btn {
   background: none;
   border: none;
-  color: white;
+  color: #94a3b8;
   font-size: 20px;
   cursor: pointer;
   display: none;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.menu-btn:hover {
+  color: #f1f5f9;
+  background: rgba(255,255,255,0.06);
 }
 
 .chat-header h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   flex: 1;
+  letter-spacing: -0.2px;
 }
 
 .clear-btn {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
   border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
+  padding: 5px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s ease;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
 }
 
 .clear-btn:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
 }
 
 .clear-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
@@ -546,16 +634,17 @@ export default {
 .user-menu-btn {
   background: none;
   border: none;
-  color: white;
-  font-size: 24px;
+  color: #94a3b8;
+  font-size: 20px;
   cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 
 .user-menu-btn:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
 }
 
 .user-menu-dropdown {
@@ -563,31 +652,36 @@ export default {
   right: 0;
   top: 100%;
   margin-top: 8px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  background: #1e293b;
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 8px 32px rgba(0, 0, 0, 0.3);
   min-width: 200px;
   z-index: 1000;
   overflow: hidden;
+  border: 1px solid #334155;
 }
 
 .user-info-header {
-  padding: 12px 16px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  background-color: #f8f9fa;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  background: #d97706;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 16px;
+  color: white;
 }
 
 .user-details {
@@ -597,19 +691,19 @@ export default {
 
 .user-name {
   font-weight: 600;
-  color: #333;
-  font-size: 14px;
+  color: #f1f5f9;
+  font-size: 13px;
 }
 
 .user-role {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
 .menu-divider {
   border: none;
   height: 1px;
-  background-color: #e0e0e0;
+  background: #334155;
   margin: 0;
 }
 
@@ -619,44 +713,51 @@ export default {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  color: #555;
+  font-size: 13px;
+  color: #cbd5e1;
   text-align: left;
-  transition: all 0.2s ease;
+  transition: all 0.1s ease;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .user-menu-dropdown .menu-item:hover {
-  background-color: #f5f5f5;
-  color: #667eea;
+  background: #334155;
+  color: #f1f5f9;
 }
 
 .user-menu-dropdown .menu-item.logout-item:hover {
-  background-color: #ffebee;
-  color: #f44336;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
 }
 
 /* 消息区域 */
 .chat-messages {
   flex: 1;
-  padding: 20px;
+  padding: 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 16px;
 }
 
 .welcome-message {
   text-align: center;
-  padding: 40px 20px;
-  color: #666;
+  padding: 60px 20px;
+  color: #94a3b8;
 }
 
 .welcome-message h2 {
-  margin: 0 0 15px 0;
-  color: #333;
+  margin: 0 0 12px 0;
+  color: #f1f5f9;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.welcome-message p {
+  color: #64748b;
+  font-size: 14px;
 }
 
 .message {
@@ -666,64 +767,67 @@ export default {
 
 .message-bubble {
   max-width: 80%;
-  padding: 12px 16px;
-  border-radius: 18px;
+  padding: 14px 18px;
+  border-radius: 16px;
   position: relative;
   word-wrap: break-word;
+  line-height: 1.6;
 }
 
 .message-bubble.user {
   align-self: flex-end;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-bottom-right-radius: 4px;
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid #334155;
+  border-bottom-right-radius: 6px;
 }
 
 .message-bubble.assistant {
   align-self: flex-start;
-  background-color: white;
-  color: #333;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-bottom-left-radius: 6px;
   max-width: 90%;
 }
 
 .thinking-section {
-  margin-bottom: 12px;
-  border: 1px solid #e0e0e0;
+  margin-bottom: 14px;
+  border: 1px solid #334155;
   border-radius: 8px;
   overflow: hidden;
 }
 
 .thinking-header {
-  background-color: #f8f9fa;
+  background: #0f172a;
   padding: 8px 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #666;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
   user-select: none;
 }
 
 .thinking-header:hover {
-  background-color: #e9ecef;
+  background: #1e293b;
 }
 
 .thinking-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .toggle-icon {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .thinking-content {
   padding: 12px;
-  background-color: #f8f9fa;
-  border-top: 1px solid #e0e0e0;
+  background: #0f172a;
+  border-top: 1px solid #334155;
 }
 
 .thinking-content pre {
@@ -731,24 +835,25 @@ export default {
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 13px;
-  color: #555;
+  color: #64748b;
   line-height: 1.5;
+  font-family: ui-monospace, Consolas, monospace;
 }
 
 .answer-content {
-  line-height: 1.6;
+  line-height: 1.65;
   font-size: 15px;
 }
 
 .message-time {
   font-size: 11px;
-  color: #999;
+  color: #64748b;
   margin-top: 6px;
   text-align: right;
 }
 
 .message-bubble.user .message-time {
-  color: rgba(255, 255, 255, 0.8);
+  color: #475569;
 }
 
 /* 消息附件 */
@@ -774,18 +879,18 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  background-color: rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .file-attachment .file-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .file-attachment .file-name {
-  max-width: 150px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -793,11 +898,13 @@ export default {
 
 .loading-indicator {
   align-self: flex-start;
-  padding: 12px 16px;
-  background-color: white;
-  border-radius: 18px;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 14px 18px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  border-bottom-left-radius: 6px;
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 .loading-dots::after {
@@ -812,40 +919,56 @@ export default {
   80%, 100% { content: '...'; }
 }
 
-/* 输入区域 */
+/* 输入区域 - 单卡片式统一风格 */
 .chat-input {
-  padding: 15px 20px;
-  background-color: white;
-  border-top: 1px solid #e0e0e0;
+  position: relative;
+  margin: 0 20px 16px;
+  min-height: 110px;
+  padding: 12px 14px 10px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 顶部拖拽拉宽手柄 - 靠近上沿时显示可拉宽光标 */
+.resize-handle {
+  position: absolute;
+  top: -2px;
+  left: 10%;
+  right: 10%;
+  height: 6px;
+  cursor: ns-resize;
+  z-index: 1;
 }
 
 .selected-files {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-bottom: 5px;
+  gap: 6px;
 }
 
 .file-tag {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background-color: #f0f0f0;
-  border-radius: 16px;
-  font-size: 13px;
-  color: #555;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
 }
 
 .file-icon {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .file-name {
-  max-width: 150px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -854,92 +977,151 @@ export default {
 .remove-file {
   background: none;
   border: none;
-  color: #999;
+  color: #64748b;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   padding: 0;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .remove-file:hover {
-  background-color: #e0e0e0;
-  color: #666;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
 }
 
+/* 第一行：输入框 - 占据剩余空间 */
 .input-row {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
 }
 
-.upload-btn {
+.input-row textarea {
+  width: 100%;
+  flex: 1;
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-size: 14px;
+  color: #f1f5f9;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  resize: none;
+  min-height: 24px;
+  max-height: 200px;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+
+.input-row textarea::placeholder {
+  color: #64748b;
+}
+
+.input-row textarea:focus {
+  box-shadow: none;
+}
+
+.input-row textarea:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 第二行：功能工具栏 - 固定底部 */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  flex-shrink: 0;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.model-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.model-badge:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+}
+
+.model-name {
+  font-weight: 500;
+}
+
+.model-arrow {
+  font-size: 8px;
+  color: #475569;
+  margin-left: 2px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
   background: none;
   border: none;
-  font-size: 20px;
+  color: #64748b;
+  font-size: 18px;
   cursor: pointer;
   padding: 8px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
+  border-radius: 8px;
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 36px;
+  height: 36px;
 }
 
-.upload-btn:hover:not(:disabled) {
-  background-color: #f0f0f0;
+.toolbar-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
 }
 
-.upload-btn:disabled {
-  opacity: 0.5;
+.toolbar-btn:disabled {
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
-.chat-input input[type="text"] {
-  flex: 1;
-  padding: 12px 18px;
-  border: 2px solid #e0e0e0;
-  border-radius: 25px;
-  font-size: 15px;
-  outline: none;
-  transition: all 0.3s ease;
+.toolbar-btn.send-btn {
+  color: #d97706;
 }
 
-.chat-input input[type="text"]:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.chat-input input[type="text"]:disabled {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
-}
-
-.send-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 25px;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.send-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.send-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.toolbar-btn.send-btn:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.15);
+  color: #fbbf24;
 }
 
 /* 响应式设计 */
@@ -951,18 +1133,41 @@ export default {
     bottom: 0;
     z-index: 100;
     transform: translateX(-100%);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
   }
-  
+
   .sidebar.sidebar-open {
     transform: translateX(0);
   }
-  
+
   .menu-btn {
     display: block;
   }
-  
+
   .message-bubble {
     max-width: 90%;
+  }
+
+  .toolbar-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .toolbar-left {
+    order: 2;
+  }
+
+  .toolbar-right {
+    order: 1;
+  }
+
+  .input-row textarea {
+    font-size: 13px;
+    padding: 6px 2px;
+  }
+
+  .chat-input {
+    margin: 0 12px 12px;
   }
 }
 </style>

@@ -110,19 +110,31 @@ html, body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-image: url('https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20abstract%20background%20with%20soft%20blue%20and%20purple%20gradients%2C%20professional%20tech%20style&image_size=landscape_16_9');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: #0f172a;
+  background-image:
+    radial-gradient(circle at 20% 35%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(245, 158, 11, 0.05) 0%, transparent 50%),
+    linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  position: relative;
   padding: 20px;
   margin: 0;
   overflow: hidden;
 }
 
+.app-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .app-container {
-    padding: 10px;
+    padding: 16px;
   }
 }
 </style>
