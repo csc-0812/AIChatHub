@@ -55,14 +55,6 @@
         </div>
       </div>
       
-      <div class="sidebar-footer">
-        <button v-if="isAdmin" class="admin-btn" @click="goToAdmin">
-          ⚙️ 管理控制台
-        </button>
-        <button class="logout-btn" @click="handleLogout">
-          退出登录
-        </button>
-      </div>
     </div>
     
     <!-- 主聊天区域 -->
@@ -81,6 +73,36 @@
         >
           清空
         </button>
+        
+        <!-- 个人管理下拉菜单 -->
+        <div class="user-menu-container">
+          <button class="user-menu-btn" @click="toggleUserMenu">
+            👤
+          </button>
+          <div v-if="showUserMenu" class="user-menu-dropdown">
+            <div class="user-info-header">
+              <div class="user-avatar">👤</div>
+              <div class="user-details">
+                <div class="user-name">{{ username }}</div>
+                <div class="user-role">{{ roleDisplay }}</div>
+              </div>
+            </div>
+            <hr class="menu-divider" />
+            <button v-if="isAdmin" class="menu-item" @click="goToAdmin">
+              ⚙️ 管理后台
+            </button>
+            <button class="menu-item" @click="changePassword">
+              🔒 修改密码
+            </button>
+            <button class="menu-item" @click="showAccountSettings">
+              ⚙️ 账户设置
+            </button>
+            <hr class="menu-divider" />
+            <button class="menu-item logout-item" @click="handleLogout">
+              🚪 退出登录
+            </button>
+          </div>
+        </div>
       </div>
       
       <!-- 消息区域 -->
@@ -204,7 +226,10 @@ export default {
   },
   data() {
     return {
-      userRole: localStorage.getItem('role') || 'user'
+      userRole: localStorage.getItem('role') || 'user',
+      showUserMenu: false,
+      username: localStorage.getItem('username') || '用户',
+      roleDisplay: this.getRoleDisplay(localStorage.getItem('role') || 'user')
     }
   },
   computed: {
@@ -222,6 +247,42 @@ export default {
     this.loadSessions(this.handleLogout);
   },
   methods: {
+    getRoleDisplay(role) {
+      const roleMap = {
+        'user': '普通用户',
+        'admin': '管理员',
+        'super_admin': '超级管理员'
+      }
+      return roleMap[role] || '普通用户'
+    },
+    
+    toggleUserMenu() {
+      this.showUserMenu = !this.showUserMenu
+      if (this.showUserMenu) {
+        document.addEventListener('click', this.closeUserMenu)
+      } else {
+        document.removeEventListener('click', this.closeUserMenu)
+      }
+    },
+    
+    closeUserMenu(event) {
+      const container = this.$el.querySelector('.user-menu-container')
+      if (container && !container.contains(event.target)) {
+        this.showUserMenu = false
+        document.removeEventListener('click', this.closeUserMenu)
+      }
+    },
+    
+    changePassword() {
+      this.showUserMenu = false
+      alert('修改密码功能开发中')
+    },
+    
+    showAccountSettings() {
+      this.showUserMenu = false
+      alert('账户设置功能开发中')
+    },
+    
     // 触发文件选择
     triggerFileUpload() {
       this.$refs.fileInput.click();
@@ -423,47 +484,6 @@ export default {
   box-sizing: border-box;
 }
 
-.sidebar-footer {
-  padding: 15px;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.admin-btn {
-  width: 100%;
-  padding: 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.admin-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.logout-btn {
-  width: 100%;
-  padding: 10px;
-  background-color: #f5f5f5;
-  color: #666;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.logout-btn:hover {
-  background-color: #e0e0e0;
-}
-
 /* 主内容区 */
 .main-content {
   flex: 1;
@@ -516,6 +536,106 @@ export default {
 .clear-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 个人管理菜单 */
+.user-menu-container {
+  position: relative;
+}
+
+.user-menu-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.user-menu-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.user-info-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #f8f9fa;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.user-role {
+  font-size: 12px;
+  color: #999;
+}
+
+.menu-divider {
+  border: none;
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 0;
+}
+
+.user-menu-dropdown .menu-item {
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  text-align: left;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-menu-dropdown .menu-item:hover {
+  background-color: #f5f5f5;
+  color: #667eea;
+}
+
+.user-menu-dropdown .menu-item.logout-item:hover {
+  background-color: #ffebee;
+  color: #f44336;
 }
 
 /* 消息区域 */

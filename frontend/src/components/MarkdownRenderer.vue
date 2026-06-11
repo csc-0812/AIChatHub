@@ -22,8 +22,9 @@ export default {
       
       content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       
-      // 处理各种形式的分隔符（---、...、*** 等），统一替换为 <hr>
-      content = content.replace(/^[\s]*(\.{3,}|-{3,}|~{3,}|\*{3,})[\s]*$/gm, '\n<hr>\n')
+      // 处理各种形式的分隔符（---、...、*** 等），统一替换为 markdown 分隔线
+      // 使用 --- 而非 <hr>，避免开启 HTML 块吞没后续标题
+      content = content.replace(/^[\s]*(\.{3,}|-{3,}|~{3,}|\*{3,})[\s]*$/gm, '\n\n---\n\n')
       
       const tableRegex = /(\|.*\|[\r\n]+\|[-:|]+\|[\r\n]+(\|.*\|[\r\n]*)*)/g
       content = content.replace(tableRegex, (match) => {
@@ -70,8 +71,8 @@ export default {
         html += '</tr>'
       }
       
-      html += '</tbody></table>'
-      
+      html += '</tbody></table>\n\n'
+
       return html
     }
   }
