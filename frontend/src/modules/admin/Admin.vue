@@ -177,11 +177,10 @@
                   <td>
                     <div class="action-buttons">
                       <button 
-                        v-if="!model.is_active"
-                        class="btn-small btn-enable"
-                        @click="activateModel(model, handleLogout)"
+                        :class="['btn-small', model.is_active ? 'btn-disable' : 'btn-enable']"
+                        @click="toggleModelEnabled(model, handleLogout)"
                       >
-                        启用
+                        {{ model.is_active ? '禁用' : '启用' }}
                       </button>
                       <button 
                         class="btn-small btn-edit"

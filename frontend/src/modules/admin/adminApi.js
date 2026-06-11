@@ -226,16 +226,17 @@ export async function deleteLLMModel(modelId) {
 }
 
 /**
- * 启用模型
+ * 启用/禁用模型
  */
-export async function activateLLMModel(modelId) {
-  const response = await request(`/models-config/llm-models/${modelId}/activate`, {
-    method: 'POST'
+export async function setModelEnabled(modelId, enabled) {
+  const response = await request(`/models-config/llm-models/${modelId}/enable`, {
+    method: 'PUT',
+    body: JSON.stringify({ model_id: modelId, enabled })
   })
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || '启用模型失败')
+    throw new Error(error.detail || '设置模型状态失败')
   }
 
   return response.json()

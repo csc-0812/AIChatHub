@@ -155,13 +155,39 @@ export async function uploadFile(file) {
 }
 
 /**
+ * 获取可用模型列表（供下拉选择）
+ */
+export async function getModelList() {
+  const response = await request('/models-config/llm-models/selection')
+  
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '获取模型列表失败')
+  }
+  
+  return response.json()
+}
+
+/**
  * 发送聊天消息（SSE流式）
  * @param {string} sessionId
  * @param {string} message
  * @param {AbortSignal} [signal] - 可选 AbortController signal，用于取消请求
+ * @param {string} [modelId] - 可选，指定使用的模型ID
  */
-export function sendChatMessage(sessionId, message, signal) {
+export function sendChatMessage(sessionId, message, signal, modelId) {
   const token = getToken()
+  
+  const body = {
+    session_id: sessionId,
+    message: message,
+    stream: true
+  }
+  
+  // 如果指定了 modelId，则添加到请求体
+  if (modelId) {
+    body.model_id = modelId
+  }
   
   return fetch(`${API_BASE_URL}/chat/stream`, {
     method: 'POST',
@@ -169,11 +195,7 @@ export function sendChatMessage(sessionId, message, signal) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({
-      session_id: sessionId,
-      message: message,
-      stream: true
-    }),
+    body: JSON.stringify(body),
     signal
   })
 }

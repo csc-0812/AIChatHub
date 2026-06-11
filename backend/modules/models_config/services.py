@@ -1,6 +1,6 @@
 """
 模型配置服务
-提供多模型管理和切换功能
+提供多模型管理和切换功能（支持同时启用多个模型）
 """
 import json
 import uuid
@@ -19,7 +19,6 @@ class ModelsConfigService:
     def __init__(self):
         self.redis = redis_client
         self.models_key = "llm:models"
-        self.active_model_key = "llm:active_model"
     
     def _get_models_from_redis(self) -> List[LLMModelConfig]:
         """从Redis获取所有模型配置"""
@@ -29,24 +28,49 @@ class ModelsConfigService:
                 return []
 
             models_list = json.loads(models_data)
-            return [LLMModelConfig(**model) for model in models_list]
+            result = []
+            needs_resave = False
+            for model_data in models_list:
+                try:
+                    result.append(LLMModelConfig(**model_data))
+                except Exception:
+                    # 兼容旧格式：datetime 可能以空格分隔（str() 序列化），修复为 ISO 8601
+                    fixed = self._fix_datetime_format(model_data)
+                    if fixed:
+                        try:
+                            result.append(LLMModelConfig(**fixed))
+                            needs_resave = True
+                            models_logger.info(f"已修复模型 '{fixed.get('name', 'unknown')}' 的日期格式")
+                        except Exception as parse_err:
+                            models_logger.warning(f"解析单个模型配置失败（跳过）: {parse_err}, name={model_data.get('name', 'unknown')}")
+                    else:
+                        models_logger.warning(f"解析单个模型配置失败（跳过）: name={model_data.get('name', 'unknown')}")
+            # 如果有修复的数据，重新保存
+            if needs_resave:
+                self._save_models_to_redis(result)
+            return result
         except Exception as e:
             models_logger.error(f"从Redis获取模型配置失败: {e}")
-            # 数据损坏，清除Redis中的数据
-            try:
-                self.redis.delete(self.models_key)
-                self.redis.delete(self.active_model_key)
-                models_logger.info("已清除损坏的模型配置数据")
-            except Exception as del_e:
-                models_logger.error(f"清除损坏数据失败: {del_e}")
             return []
     
+    def _fix_datetime_format(self, model_data: dict) -> Optional[dict]:
+        """修复旧版 datetime 格式（空格分隔 → ISO 8601 T 分隔）"""
+        fixed = dict(model_data)
+        needs_fix = False
+        for key in ("created_at", "updated_at"):
+            val = fixed.get(key)
+            if isinstance(val, str) and " " in val and "T" not in val:
+                # "2025-06-11 17:19:30.123456" → "2025-06-11T17:19:30.123456"
+                fixed[key] = val.replace(" ", "T", 1)
+                needs_fix = True
+        return fixed if needs_fix else None
+    
     def _save_models_to_redis(self, models: List[LLMModelConfig]):
-        """保存模型配置到Redis"""
-        models_list = [model.model_dump() for model in models]
+        """保存模型配置到Redis（使用 mode='json' 确保 datetime 序列化为 ISO 8601 格式）"""
+        models_list = [model.model_dump(mode='json') for model in models]
         self.redis.set(
             self.models_key,
-            json.dumps(models_list, default=str),
+            json.dumps(models_list),
             expire=30 * 24 * 3600  # 30天过期
         )
     
@@ -76,7 +100,6 @@ class ModelsConfigService:
             
             # 保存到Redis
             self._save_models_to_redis([model])
-            self.redis.set(self.active_model_key, model.id, expire=30 * 24 * 3600)
             
             return model
         except Exception as e:
@@ -99,38 +122,34 @@ class ModelsConfigService:
             else:
                 models_logger.warning("从配置文件初始化失败")
 
-        # 获取当前启用的模型ID
-        active_model_id = self.redis.get(self.active_model_key)
-        models_logger.info(f"当前启用模型ID: {active_model_id}")
-
         # 转换为响应格式（隐藏API密钥）
-        # 根据 active_model_id 动态设置 is_active 字段
+        # 每个模型的 is_active 字段即为其真实启用状态
         models_response = []
         for model in models:
             model_dict = model.model_dump()
             model_dict["api_key"] = "******" if model.api_key else ""
-            # 动态计算 is_active，以 active_model_key 为准
-            model_dict["is_active"] = (model.id == active_model_id)
             models_response.append(model_dict)
+
+        enabled_ids = [m.id for m in models if m.is_active]
 
         return {
             "models": models_response,
-            "active_model_id": active_model_id,
+            "enabled_model_ids": enabled_ids,
             "count": len(models)
         }
     
     def get_active_model(self) -> Optional[LLMModelConfig]:
-        """获取当前启用的模型配置"""
-        active_model_id = self.redis.get(self.active_model_key)
-        if not active_model_id:
-            return None
-        
+        """获取当前启用的模型配置（返回第一个启用的模型，用于默认聊天）"""
         models = self._get_models_from_redis()
         for model in models:
-            if model.id == active_model_id:
+            if model.is_active:
                 return model
-        
         return None
+    
+    def get_enabled_models(self) -> List[LLMModelConfig]:
+        """获取所有已启用的模型"""
+        models = self._get_models_from_redis()
+        return [m for m in models if m.is_active]
     
     def create_model(self, model_data: Dict[str, Any]) -> LLMModelConfig:
         """创建新模型配置"""
@@ -185,19 +204,9 @@ class ModelsConfigService:
         models = self._get_models_from_redis()
         
         # 查找要删除的模型
-        model_to_delete = None
-        for model in models:
-            if model.id == model_id:
-                model_to_delete = model
-                break
-        
-        if not model_to_delete:
+        model_exists = any(m.id == model_id for m in models)
+        if not model_exists:
             return False
-        
-        # 如果删除的是当前启用的模型，需要清除启用状态
-        active_model_id = self.redis.get(self.active_model_key)
-        if active_model_id == model_id:
-            self.redis.delete(self.active_model_key)
         
         # 删除模型
         models = [m for m in models if m.id != model_id]
@@ -205,23 +214,27 @@ class ModelsConfigService:
         
         return True
     
-    def set_active_model(self, model_id: str) -> bool:
-        """设置启用的模型"""
+    def set_model_enabled(self, model_id: str, enabled: bool) -> bool:
+        """
+        设置模型的启用/禁用状态（支持同时启用多个模型）
+        
+        Args:
+            model_id: 模型ID
+            enabled: True=启用, False=禁用
+            
+        Returns:
+            是否操作成功
+        """
         models = self._get_models_from_redis()
         
-        # 验证模型是否存在
-        model_exists = any(m.id == model_id for m in models)
-        if not model_exists:
-            return False
-        
-        # 更新所有模型的启用状态
         for model in models:
-            model.is_active = (model.id == model_id)
+            if model.id == model_id:
+                model.is_active = enabled
+                model.updated_at = datetime.now()
+                self._save_models_to_redis(models)
+                return True
         
-        self._save_models_to_redis(models)
-        self.redis.set(self.active_model_key, model_id, expire=30 * 24 * 3600)
-        
-        return True
+        return False
     
     def get_model_by_id(self, model_id: str) -> Optional[LLMModelConfig]:
         """根据ID获取模型配置"""
@@ -230,6 +243,34 @@ class ModelsConfigService:
             if model.id == model_id:
                 return model
         return None
+
+    def get_models_for_selection(self) -> Dict[str, Any]:
+        """获取已启用模型选择列表（不含敏感信息，所有用户可访问）"""
+        models = self._get_models_from_redis()
+
+        # 如果没有数据，尝试从配置文件初始化
+        if not models:
+            default_model = self._init_default_model_from_config()
+            if default_model:
+                models = [default_model]
+
+        # 只返回已启用的模型
+        selection = []
+        for model in models:
+            if not model.is_active:
+                continue
+            selection.append({
+                "id": model.id,
+                "name": model.name,
+                "model": model.model,
+                "is_active": model.is_active,
+                "description": model.description
+            })
+
+        return {
+            "models": selection,
+            "count": len(selection)
+        }
 
 
 # 创建服务实例

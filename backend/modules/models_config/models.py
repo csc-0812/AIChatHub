@@ -65,6 +65,7 @@ class LLMModelListResponse(BaseModel):
     active_model_id: Optional[str] = None
 
 
-class SetActiveModelRequest(BaseModel):
-    """设置活跃模型请求"""
+class SetModelEnabledRequest(BaseModel):
+    """设置模型启用/禁用请求"""
     model_id: str
+    enabled: bool

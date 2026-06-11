@@ -15,6 +15,10 @@ export function useChat() {
   const editingTitle = ref('')
   const selectedFiles = ref([])
   const abortController = ref(null)     // 用于取消正在进行的流式请求
+  // 模型选择
+  const models = ref([])               // 可用模型列表
+  const selectedModelId = ref(null)    // 当前选中的模型ID
+  const showModelDropdown = ref(false) // 模型下拉是否展示
 
   // 计算属性
   const hasSessions = computed(() => sessions.value.length > 0)
@@ -88,6 +92,14 @@ export function useChat() {
         thinking: '',
         showThinking: false
       }))
+      // 恢复该会话之前使用的模型
+      if (data.model_id) {
+        // 确保模型列表中有该模型
+        const modelExists = models.value.some(m => m.id === data.model_id)
+        if (modelExists) {
+          selectedModelId.value = data.model_id
+        }
+      }
     } catch (error) {
       if (error.response && await handleUnauthorized(error.response, onLogout)) {
         return
@@ -256,7 +268,8 @@ export function useChat() {
       const response = await chatApi.sendChatMessage(
         currentSessionId.value,
         userMessage,
-        abortController.value.signal
+        abortController.value.signal,
+        selectedModelId.value
       )
 
       if (await handleUnauthorized(response, onLogout)) {
@@ -406,6 +419,48 @@ export function useChat() {
     showSidebar.value = !showSidebar.value
   }
 
+  // 加载模型列表
+  async function loadModels(onLogout) {
+    try {
+      const data = await chatApi.getModelList()
+      models.value = data.models || []
+      
+      // 首次加载时初始化选中模型
+      if (!selectedModelId.value && models.value.length > 0) {
+        selectedModelId.value = models.value[0].id
+      }
+      // 刷新后如果当前选中模型已不在列表中，回退到第一个
+      if (selectedModelId.value && !models.value.some(m => m.id === selectedModelId.value)) {
+        selectedModelId.value = models.value.length > 0 ? models.value[0].id : null
+      }
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) {
+        return
+      }
+      console.error('加载模型列表失败:', error)
+    }
+  }
+
+  // 切换模型下拉（打开时刷新列表）
+  async function toggleModelDropdown(onLogout) {
+    showModelDropdown.value = !showModelDropdown.value
+    if (showModelDropdown.value) {
+      await loadModels(onLogout)
+    }
+  }
+
+  // 切换模型
+  function selectModel(modelId) {
+    selectedModelId.value = modelId
+    showModelDropdown.value = false
+  }
+
+  // 获取当前选中模型名称（显示 model 字段，如 gpt-4o）
+  function getSelectedModelName() {
+    const model = models.value.find(m => m.id === selectedModelId.value)
+    return model ? model.model : '默认模型'
+  }
+
   // 格式化日期
   function formatDate(dateString) {
     const date = new Date(dateString)
@@ -454,6 +509,14 @@ export function useChat() {
     sendMessage,
     stopMessage,
     toggleSidebar,
-    formatDate
+    formatDate,
+    // 模型选择
+    models,
+    selectedModelId,
+    showModelDropdown,
+    loadModels,
+    toggleModelDropdown,
+    selectModel,
+    getSelectedModelName
   }
 }

@@ -28,6 +28,7 @@ class ChatSession(BaseModel):
     title: Optional[str] = None
     messages: List[ChatMessage] = Field(default_factory=list)
     max_context_length: int = 10  # 最大保留的上下文消息数
+    model_id: Optional[str] = None  # 该会话使用的模型ID
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
@@ -73,6 +74,7 @@ class ChatRequest(BaseModel):
     session_id: str  # 会话ID
     message: str     # 用户消息
     stream: bool = True  # 是否使用流式输出
+    model_id: Optional[str] = None  # 指定使用的模型ID，不传则使用默认启用的模型
 
 
 class ChatResponse(BaseModel):

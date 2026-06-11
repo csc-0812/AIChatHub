@@ -179,9 +179,25 @@
         <div class="toolbar-row">
           <!-- 左侧：模型选择 -->
           <div class="toolbar-left">
-            <div class="model-badge">
-              <span class="model-name">deepseek-v4-pro</span>
-              <span class="model-arrow">▼</span>
+            <div class="model-selector" ref="modelSelectorRef">
+              <div class="model-badge" @click.stop="toggleModelDropdown(handleLogout)">
+                <span class="model-name">{{ getSelectedModelName() }}</span>
+                <span class="model-arrow" :class="{ open: showModelDropdown }">▼</span>
+              </div>
+              <div v-if="showModelDropdown" class="model-dropdown">
+                <div
+                  v-for="model in models"
+                  :key="model.id"
+                  class="model-dropdown-item"
+                  :class="{ active: model.id === selectedModelId }"
+                  @click.stop="selectModel(model.id)"
+                >
+                  <span class="model-item-name">{{ model.model }}</span>
+                </div>
+                <div v-if="models.length === 0" class="model-dropdown-empty">
+                  暂无可用模型
+                </div>
+              </div>
             </div>
           </div>
 
@@ -274,10 +290,16 @@ export default {
       return;
     }
     this.loadSessions(this.handleLogout);
+    this.loadModels(this.handleLogout);
     // textarea 自动高度
     this.$nextTick(() => {
       this.autoResizeTextarea();
     });
+    // 点击外部关闭模型下拉
+    document.addEventListener('click', this.closeModelDropdown);
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.closeModelDropdown);
   },
   methods: {
     getRoleDisplay(role) {
@@ -389,6 +411,13 @@ export default {
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+    },
+
+    closeModelDropdown(event) {
+      const selector = this.$refs.modelSelectorRef;
+      if (selector && !selector.contains(event.target)) {
+        this.showModelDropdown = false;
+      }
     }
   },
   watch: {
@@ -1097,6 +1126,83 @@ export default {
   font-size: 8px;
   color: #475569;
   margin-left: 2px;
+  transition: transform 0.2s ease;
+}
+
+.model-arrow.open {
+  transform: rotate(180deg);
+}
+
+/* 模型选择器容器 */
+.model-selector {
+  position: relative;
+}
+
+/* 模型下拉菜单 */
+.model-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1001;
+  padding: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.model-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.model-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.model-dropdown::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 2px;
+}
+
+.model-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.model-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.model-dropdown-item.active {
+  background: rgba(217, 119, 6, 0.12);
+  color: #fbbf24;
+}
+
+.model-item-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-dropdown-empty {
+  padding: 14px 12px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
 }
 
 .toolbar-right {

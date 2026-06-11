@@ -15,7 +15,6 @@ export function useAdmin() {
     total_sessions: 0
   })
   const llmModels = ref([])
-  const activeModelId = ref(null)
 
   // 弹窗状态
   const showRoleDialog = ref(false)
@@ -192,7 +191,6 @@ export function useAdmin() {
     try {
       const data = await adminApi.getLLMModels()
       llmModels.value = data.models
-      activeModelId.value = data.active_model_id
     } catch (error) {
       if (error.response && await handleUnauthorized(error.response, onLogout)) return
       console.error('加载模型配置失败:', error)
@@ -374,10 +372,11 @@ export function useAdmin() {
     }
   }
 
-  async function activateModel(model, onLogout) {
+  async function toggleModelEnabled(model, onLogout) {
     try {
-      await adminApi.activateLLMModel(model.id)
-      showMessage(`模型 "${model.name}" 已启用`)
+      const newEnabled = !model.is_active
+      await adminApi.setModelEnabled(model.id, newEnabled)
+      showMessage(`模型 "${model.name}" 已${newEnabled ? '启用' : '禁用'}`)
       await loadLLMModels(onLogout)
     } catch (error) {
       showMessage(error.message || '启用失败', 'error')
@@ -404,7 +403,6 @@ export function useAdmin() {
     users,
     stats,
     llmModels,
-    activeModelId,
     showRoleDialog,
     showResetDialog,
     showAddUserDialog,
@@ -449,7 +447,7 @@ export function useAdmin() {
     updateUser,
     addModel,
     updateModel,
-    activateModel,
+    toggleModelEnabled,
     deleteModel
   }
 }

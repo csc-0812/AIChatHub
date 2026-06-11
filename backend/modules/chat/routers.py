@@ -79,6 +79,7 @@ async def get_session(
         "session_id": session.session_id,
         "title": session.title,
         "max_context_length": session.max_context_length,
+        "model_id": session.model_id,
         "messages": [
             {
                 "role": msg.role.value,
@@ -211,7 +212,8 @@ async def chat_stream(
             chat_service.chat_stream(
                 session_id=request.session_id,
                 message=request.message,
-                user_id=current_user.username
+                user_id=current_user.username,
+                model_id=request.model_id
             ),
             media_type="text/event-stream",
             headers={
