@@ -8,7 +8,7 @@ from langchain.agents import create_agent, AgentState
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph.state import CompiledStateGraph
 
-from .tools import BUILTIN_TOOLS
+from .tools import BASIC_TOOLS
 from .prompts import router_prompt
 from .middleware import create_default_middleware
 
@@ -51,7 +51,7 @@ class RouterAgent:
             
             self._agent = create_agent(
                 chat_model,
-                tools=BUILTIN_TOOLS,
+                tools=BASIC_TOOLS,
                 middleware=middleware,
                 system_prompt=router_prompt
             )

@@ -55,13 +55,18 @@ class ChatService:
             return
         
         full_content = ""
-        
+        prev_content_len = 0
+
         try:
             async for event in agent.stream(messages):
                 if "content" in event:
                     content = event["content"]
+                    # 只发送增量部分，避免前端重复拼接
+                    if len(content) > prev_content_len:
+                        incremental = content[prev_content_len:]
+                        yield self._format_sse_event("answer_chunk", {"chunk": incremental})
+                    prev_content_len = len(content)
                     full_content = content
-                    yield self._format_sse_event("answer_chunk", {"chunk": content})
             
             yield self._format_sse_event("done", {
                 "session_id": session_id,

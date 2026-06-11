@@ -125,7 +125,7 @@
             </div>
             
             <!-- 最终答案 -->
-            <div class="answer-content">{{ message.content }}</div>
+            <ContentRenderer :content="message.content" />
             <div class="message-time">{{ message.time }}</div>
           </div>
         </div>
@@ -190,9 +190,11 @@
 <script>
 import { useChat } from './useChat.js'
 import { API_CONFIG } from '../../utils/config.js'
+import ContentRenderer from '../../components/ContentRenderer.vue'
 
 export default {
   name: 'Chat',
+  components: { ContentRenderer },
   setup() {
     const chat = useChat()
     return {
@@ -257,12 +259,16 @@ export default {
 
     goToAdmin() {
       this.$emit('go-admin');
+    },
+
+    renderTestChart() {
+      // no-op
     }
   },
   watch: {
     messages: {
       handler() {
-        this.scrollToBottom();
+        this.scrollToBottom()
       },
       deep: true
     }
@@ -559,6 +565,7 @@ export default {
   color: #333;
   border-bottom-left-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-width: 90%;
 }
 
 .thinking-section {

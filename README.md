@@ -42,6 +42,7 @@ AIChatHub/
 ## 功能特性
 
 ### 已实现功能
+
 - [x] 用户认证（注册/登录/JWT）
 - [x] 会话管理（创建/列表/删除/重命名/清空）
 - [x] 流式聊天（SSE）
@@ -55,6 +56,7 @@ AIChatHub/
 ### 技术栈
 
 **后端**
+
 - FastAPI - Web 框架
 - Redis - 数据存储
 - LangChain - LLM 集成
@@ -63,6 +65,7 @@ AIChatHub/
 - PyYAML - 配置管理
 
 **前端**
+
 - Vue 3 - 框架
 - Vite - 构建工具
 - 原生 CSS - 样式
@@ -70,6 +73,7 @@ AIChatHub/
 ## 快速开始
 
 ### 环境要求
+
 - Python 3.14+
 - Node.js 18+
 - Redis 服务器
@@ -115,7 +119,7 @@ uv sync
 uv run uvicorn main:app --reload
 ```
 
-后端服务将在 http://localhost:8000 运行
+后端服务将在 <http://localhost:8000> 运行
 
 ### 4. 启动前端
 
@@ -129,22 +133,25 @@ npm install
 npm run dev
 ```
 
-前端服务将在 http://localhost:5173 运行
+前端服务将在 <http://localhost:5173> 运行
 
 ## API 文档
 
 启动后端后访问：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+
+- Swagger UI: <http://localhost:8000/docs>
+- ReDoc: <http://localhost:8000/redoc>
 
 ### 主要接口
 
 **认证**
+
 - `POST /api/v1/auth/register` - 用户注册
 - `POST /api/v1/auth/login` - 用户登录
 - `GET /api/v1/auth/me` - 获取当前用户
 
 **聊天**
+
 - `POST /api/v1/chat/sessions` - 创建会话
 - `GET /api/v1/chat/sessions` - 获取会话列表
 - `GET /api/v1/chat/sessions/{id}` - 获取会话详情
@@ -154,11 +161,13 @@ npm run dev
 - `POST /api/v1/chat/stream` - 流式聊天
 
 **管理员**
+
 - `GET /api/v1/admin/users` - 获取用户列表
 - `PUT /api/v1/admin/users/{id}` - 更新用户信息
 - `DELETE /api/v1/admin/users/{id}` - 删除用户
 
 **模型配置**
+
 - `GET /api/v1/models` - 获取模型列表
 - `POST /api/v1/models` - 创建模型配置
 - `PUT /api/v1/models/{id}` - 更新模型配置
@@ -175,6 +184,7 @@ npm run dev
 - `AgentRole` - 智能体角色枚举（协调者、研究者、分析者等）
 
 当前每个会话默认创建一个协调者智能体，后续可扩展为：
+
 - 多智能体协作
 - 角色专业化（研究、分析、写作等）
 - 工作流编排（顺序、并行、共识）
@@ -201,4 +211,4 @@ npm run dev
 
 ## 许可证
 
-MIT
+MI
