@@ -1,25 +1,42 @@
 <template>
   <div class="login-container">
-    <h1>登录</h1>
-    <form @submit.prevent="handleLogin">
+    <h1>{{ isRegisterMode ? '注册' : '登录' }}</h1>
+    <form @submit.prevent="handleSubmit">
       <div class="form-group">
         <label for="username">用户名</label>
         <input type="text" id="username" v-model="form.username" required />
+      </div>
+      <div v-if="isRegisterMode" class="form-group">
+        <label for="email">邮箱（选填）</label>
+        <input type="email" id="email" v-model="form.email" />
+      </div>
+      <div v-if="isRegisterMode" class="form-group">
+        <label for="full_name">全名（选填）</label>
+        <input type="text" id="full_name" v-model="form.full_name" />
       </div>
       <div class="form-group">
         <label for="password">密码</label>
         <input type="password" id="password" v-model="form.password" required />
       </div>
-      <button type="submit" class="login-button" :disabled="loading">
-        {{ loading ? '登录中...' : '登录' }}
+      <button type="submit" class="auth-button" :disabled="loading">
+        {{ loading ? (isRegisterMode ? '注册中...' : '登录中...') : (isRegisterMode ? '注册' : '登录') }}
       </button>
       <div v-if="error" class="error-message">{{ error }}</div>
     </form>
-    
+
+    <!-- 切换登录/注册 -->
+    <div class="switch-mode">
+      <span v-if="!isRegisterMode">还没有账号？</span>
+      <span v-else>已有账号？</span>
+      <a href="#" @click.prevent="isRegisterMode ? switchToLogin() : switchToRegister()">
+        {{ isRegisterMode ? '去登录' : '去注册' }}
+      </a>
+    </div>
+
     <!-- 成功提示 -->
     <div v-if="showSuccess" class="success-toast">
       <span class="success-icon">✓</span>
-      <span>登录成功！</span>
+      <span>{{ successMessage }}</span>
     </div>
   </div>
 </template>
@@ -36,11 +53,15 @@ export default {
     }
   },
   methods: {
-    async handleLogin() {
+    async handleSubmit() {
       try {
-        await this.login(() => {
-          this.$emit('login-success')
-        })
+        if (this.isRegisterMode) {
+          await this.register()
+        } else {
+          await this.login(() => {
+            this.$emit('login-success')
+          })
+        }
       } catch (error) {
         // 错误已在useAuth中处理
       }
@@ -140,7 +161,7 @@ input:focus {
   background: rgba(15, 23, 42, 0.7);
 }
 
-.login-button {
+.auth-button {
   width: 100%;
   padding: 13px;
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
@@ -157,7 +178,7 @@ input:focus {
   overflow: hidden;
 }
 
-.login-button::after {
+.auth-button::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -166,20 +187,20 @@ input:focus {
   transition: opacity 0.25s ease;
 }
 
-.login-button:hover:not(:disabled) {
+.auth-button:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
 }
 
-.login-button:hover:not(:disabled)::after {
+.auth-button:hover:not(:disabled)::after {
   opacity: 1;
 }
 
-.login-button:active:not(:disabled) {
+.auth-button:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.login-button:disabled {
+.auth-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -193,6 +214,25 @@ input:focus {
   color: #fca5a5;
   font-size: 13px;
   text-align: center;
+}
+
+/* 切换登录/注册 */
+.switch-mode {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.switch-mode a {
+  color: #f59e0b;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.switch-mode a:hover {
+  color: #fbbf24;
 }
 
 /* 成功提示 */
@@ -259,7 +299,7 @@ input:focus {
     font-size: 14px;
   }
 
-  .login-button {
+  .auth-button {
     padding: 12px;
     font-size: 14px;
   }

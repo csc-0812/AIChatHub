@@ -32,7 +32,10 @@ async def register(user: User):
     if existing_user:
         raise HTTPException(status_code=400, detail="用户名已存在")
     
-    # 创建新用户（默认角色为普通用户）
+    # 强制设置为普通用户角色，防止通过注册接口提升权限
+    user.role = UserRole.USER
+    
+    # 创建新用户
     created_user = auth_service.create_user(user)
     return {
         "username": created_user.username,

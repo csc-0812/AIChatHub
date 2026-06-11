@@ -77,6 +77,26 @@ export async function logout() {
 }
 
 /**
+ * 用户注册
+ */
+export async function register(username, password, email, full_name) {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ username, password, email, full_name })
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '注册失败')
+  }
+
+  return response.json()
+}
+
+/**
  * 检查是否已登录
  */
 export function isLoggedIn() {
