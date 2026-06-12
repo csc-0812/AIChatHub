@@ -75,19 +75,15 @@ export default {
   max-width: 400px;
   width: 100%;
   padding: 40px 36px;
-  background: rgba(30, 41, 59, 0.85);
+  background: var(--card-bg);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.2),
-    0 4px 8px rgba(0, 0, 0, 0.15),
-    0 16px 32px rgba(0, 0, 0, 0.2),
-    0 32px 64px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow-dropdown);
   position: relative;
   z-index: 1;
-  color: #e2e8f0;
+  color: var(--text-secondary);
 }
 
 .login-container::before {
@@ -96,7 +92,7 @@ export default {
   inset: 0;
   border-radius: 16px;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(16, 185, 129, 0.15), rgba(245, 158, 11, 0.1));
+  background: linear-gradient(135deg, var(--brand-glow), var(--brand), var(--brand-light));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -107,7 +103,7 @@ export default {
 h1 {
   text-align: center;
   margin-bottom: 8px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.3px;
@@ -118,7 +114,7 @@ h1::after {
   display: block;
   width: 32px;
   height: 3px;
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  background: linear-gradient(90deg, var(--brand-glow), var(--brand-light));
   border-radius: 2px;
   margin: 16px auto 0;
 }
@@ -132,7 +128,7 @@ label {
   margin-bottom: 6px;
   font-weight: 500;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
   letter-spacing: 0.3px;
   text-transform: uppercase;
 }
@@ -140,32 +136,30 @@ label {
 input {
   width: 100%;
   padding: 12px 16px;
-  background: rgba(15, 23, 42, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--app-bg);
+  border: 1px solid var(--input-border);
   border-radius: 10px;
   box-sizing: border-box;
   font-size: 15px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   transition: all 0.2s ease;
   font-family: inherit;
 }
 
-input::placeholder {
-  color: #64748b;
-}
+input::placeholder { color: var(--text-placeholder); }
 
 input:focus {
   outline: none;
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
-  background: rgba(15, 23, 42, 0.7);
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-ring);
+  background: var(--app-bg);
 }
 
 .auth-button {
   width: 100%;
   padding: 13px;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #0f172a;
+  background: var(--gradient-brand);
+  color: var(--brand-fg);
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -182,14 +176,14 @@ input:focus {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  background: var(--gradient-brand-hover);
   opacity: 0;
   transition: opacity 0.25s ease;
 }
 
 .auth-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  box-shadow: var(--shadow-btn);
 }
 
 .auth-button:hover:not(:disabled)::after {
@@ -221,18 +215,18 @@ input:focus {
   margin-top: 20px;
   text-align: center;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .switch-mode a {
-  color: #f59e0b;
+  color: var(--brand-glow);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s ease;
 }
 
 .switch-mode a:hover {
-  color: #fbbf24;
+  color: var(--brand-light);
 }
 
 /* 成功提示 */

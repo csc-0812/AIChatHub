@@ -217,10 +217,10 @@ export default {
 .chart-loading {
   padding: 16px 20px;
   margin: 10px 0;
-  background: #1e293b;
-  border: 1px dashed #475569;
+  background: var(--app-bg-secondary);
+  border: 1px dashed var(--card-border);
   border-radius: 8px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 14px;
   text-align: center;
   animation: pulse 1.5s ease-in-out infinite;

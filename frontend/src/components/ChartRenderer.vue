@@ -75,7 +75,7 @@
           :key="'grid-'+lvl"
           :points="radarGridPoints(lvl)"
           fill="none"
-          stroke="#475569"
+          stroke="rgba(148,163,184,0.25)"
           stroke-width="0.8"
           stroke-dasharray="3,3"
         />
@@ -85,7 +85,7 @@
           :key="'axis-'+i"
           :x1="rCx" :y1="rCy"
           :x2="radarAxisEndX(i)" :y2="radarAxisEndY(i)"
-          stroke="#475569"
+          stroke="rgba(148,163,184,0.25)"
           stroke-width="0.8"
         />
         <!-- 数据集多边形 -->
@@ -106,7 +106,7 @@
           :key="'dot-'+pi"
           :cx="pt.x" :cy="pt.y" r="3.5"
           :fill="pt.color"
-          stroke="#1e293b" stroke-width="1.5"
+          stroke="#0F1738" stroke-width="1.5"
         />
         <!-- 轴标签 -->
         <text
@@ -141,11 +141,18 @@
 </template>
 
 <script>
-const PIE_COLORS = ['#667eea','#11998e','#fc4a1a','#ee0979','#4facfe','#43e97b','#fa709a','#f093fb']
+// 图表色板：钴蓝弥散 — 以蓝灰阶为主体，低饱和，克制专业
+// 原则：减少多色干扰，以钴蓝色阶承担视觉区分，语义色仅用于状态标记
+const PIE_COLORS = ['#1E50E5','#4B7BE5','#6EA8FF','#9DB4F0','#C7D5FB','#7C93C5','#3A6BD8','#5A85CC']
 const COLOR_PAIRS = [
-  ['#667eea','#764ba2'],['#11998e','#38ef7d'],['#fc4a1a','#f7b733'],
-  ['#ee0979','#ff6a00'],['#4facfe','#00f2fe'],['#43e97b','#38f9d7'],
-  ['#fa709a','#fee140'],['#a18cd1','#fbc2eb']
+  ['#1E50E5','#3A6BD8'],   // 钴蓝 → 中钴蓝（主指标）
+  ['#4B7BE5','#6EA8FF'],   // 深天蓝 → 极光蓝（次指标）
+  ['#5A85CC','#7C93C5'],   // 钢蓝 → 蓝灰（辅助）
+  ['#3D6BA8','#567EB0'],   // 灰蓝 → 柔钢蓝（参考）
+  ['#4A73B8','#6388BC'],   // 蓝靛 → 淡蓝靛
+  ['#6B8AC5','#8FA5CF'],   // 雾蓝 → 晨雾蓝
+  ['#5070A0','#7090B8'],   // 暮蓝 → 远空蓝
+  ['#556E99','#7890AA'],   // 石板蓝 → 浅石板
 ]
 const DEG = Math.PI / 180
 
@@ -403,20 +410,20 @@ export default {
 
 <style scoped>
 .chart-container {
-  margin: 16px 0; padding: 20px; background: #1e293b;
-  border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.3);
-  border: 1px solid #334155;
+  margin: 16px 0; padding: 20px; background: var(--app-bg-secondary);
+  border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  border: 1px solid var(--card-border);
 }
-.chart-title { font-size: 15px; font-weight: 600; color: #f1f5f9; margin: 0 0 14px; text-align: center; }
+.chart-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin: 0 0 14px; text-align: center; }
 
 /* ===== 柱状图 ===== */
 .css-chart { width: 100%; }
 .css-bar-row { display: flex; align-items: center; margin-bottom: 10px; gap: 12px; }
 .css-bar-row:last-child { margin-bottom: 0; }
-.css-label { flex-shrink: 0; width: 70px; text-align: right; font-size: 13px; font-weight: 500; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.css-track { flex: 1; height: 30px; background: #334155; border-radius: 15px; overflow: hidden; position: relative; }
-.css-fill { height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; min-width: 50px; transition: width .8s ease-out; border-radius: 15px; background: #667eea; }
-.css-value { color: #fff; font-size: 12px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.css-label { flex-shrink: 0; width: 70px; text-align: right; font-size: 13px; font-weight: 500; color: #94A3B8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.css-track { flex: 1; height: 30px; background: rgba(30,80,229,0.12); border-radius: 15px; overflow: hidden; position: relative; }
+.css-fill { height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; min-width: 50px; transition: width .8s ease-out; border-radius: 15px; background: #1E50E5; }
+.css-value { color: #FFFFFF; font-size: 12px; font-weight: 700; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
 
 /* ===== 饼图 ===== */
 .pie-wrapper { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 2px 0; }
@@ -433,25 +440,25 @@ export default {
 }
 
 /* 饼图标签文字 */
-.pie-label-txt { font-size: 10px; font-weight: 600; fill: #e2e8f0; }
-.pie-label-pct { font-size: 9px; font-weight: 500; fill: #94a3b8; }
+.pie-label-txt { font-size: 10px; font-weight: 600; fill: #CBD5E1; }
+.pie-label-pct { font-size: 9px; font-weight: 500; fill: #94A3B8; }
 
 /* 图例 */
 .pie-legend-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; max-width: 320px; }
 .legend-cell { display: flex; align-items: center; gap: 3px; padding: 1px 3px; border-radius: 3px; cursor: default; transition: background .15s; }
-.legend-cell:hover { background: #334155; }
+.legend-cell:hover { background: rgba(30,80,229,0.12); }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.legend-name { font-size: 11px; font-weight: 500; color: #cbd5e1; max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.legend-pct { font-size: 10px; color: #94a3b8; font-weight: 600; min-width: 28px; text-align: right; }
+.legend-name { font-size: 11px; font-weight: 500; color: #CBD5E1; max-width: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-pct { font-size: 10px; color: #94A3B8; font-weight: 600; min-width: 28px; text-align: right; }
 
 /* ===== 雷达图 ===== */
 .radar-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .radar-svg { width: 100%; max-width: 320px; height: auto; overflow: visible; }
 
-.radar-label-txt { font-size: 10px; font-weight: 600; fill: #cbd5e1; }
-.radar-val-txt { font-size: 9px; font-weight: 700; fill: #e2e8f0; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.radar-label-txt { font-size: 10px; font-weight: 600; fill: #CBD5E1; }
+.radar-val-txt { font-size: 9px; font-weight: 700; fill: #E2E8F0; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 
 .radar-legend-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; max-width: 320px; margin-top: 2px; }
 
-.chart-fallback { padding: 16px; text-align: center; color: #94a3b8; font-style: italic; }
+.chart-fallback { padding: 16px; text-align: center; color: #94A3B8; font-style: italic; }
 </style>

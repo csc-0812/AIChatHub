@@ -470,12 +470,12 @@ export default {
 
 .btn-back {
   background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .btn-back:hover {
   background: rgba(255, 255, 255, 0.14);
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .btn-logout {
@@ -495,8 +495,8 @@ export default {
 
 .admin-sidebar {
   width: 220px;
-  background-color: #1e293b;
-  border-right: 1px solid #334155;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   padding: 16px 0;
   flex-shrink: 0;
 }
@@ -508,18 +508,18 @@ export default {
   cursor: pointer;
   transition: all 0.15s ease;
   font-size: 14px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .menu-item:hover {
-  background-color: #334155;
-  color: #e2e8f0;
+  background-color: var(--card-border);
+  color: var(--text-secondary);
 }
 
 .menu-item.active {
-  background-color: rgba(217, 119, 6, 0.12);
-  color: #d97706;
+  background-color: var(--brand-bg);
+  color: var(--brand);
   box-shadow: none;
 }
 
@@ -531,7 +531,7 @@ export default {
 
 .tab-content h2 {
   margin-bottom: 24px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.3px;
@@ -544,10 +544,10 @@ export default {
 }
 
 .stat-card {
-  background: #1e293b;
+  background: var(--card-bg);
   padding: 24px;
   border-radius: 12px;
-  border: 1px solid #334155;
+  border: 1px solid var(--card-border);
   text-align: center;
   transition: box-shadow 0.2s ease;
 }
@@ -559,7 +559,7 @@ export default {
 .stat-value {
   font-size: 36px;
   font-weight: 700;
-  color: #d97706;
+  color: var(--brand);
   margin-bottom: 6px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -1px;
@@ -567,21 +567,21 @@ export default {
 
 .stat-label {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .table-container {
-  background: #1e293b;
+  background: var(--card-bg);
   border-radius: 12px;
-  border: 1px solid #334155;
+  border: 1px solid var(--card-border);
   overflow: hidden;
 }
 
 .empty-state {
   padding: 48px;
   text-align: center;
-  color: #64748b;
+  color: var(--text-placeholder);
   font-size: 14px;
 }
 
@@ -594,13 +594,13 @@ export default {
 .data-table td {
   padding: 14px 16px;
   text-align: left;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid var(--card-border);
 }
 
 .data-table th {
-  background-color: #1e293b;
+  background-color: var(--card-bg);
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -608,7 +608,7 @@ export default {
 
 .data-table td {
   font-size: 14px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .data-table tbody tr:hover {
@@ -629,8 +629,8 @@ export default {
 }
 
 .role-badge.admin {
-  background-color: rgba(217, 119, 6, 0.15);
-  color: #fbbf24;
+  background-color: rgba(30, 80, 229, 0.15);
+  color: #6EA8FF;
 }
 
 .role-badge.super_admin {
@@ -672,13 +672,13 @@ export default {
 }
 
 .btn-role {
-  background: rgba(217, 119, 6, 0.15);
-  color: #fbbf24;
-  border-color: rgba(217, 119, 6, 0.3);
+  background: rgba(30, 80, 229, 0.15);
+  color: #6EA8FF;
+  border-color: rgba(30, 80, 229, 0.3);
 }
 
 .btn-role:hover {
-  background: rgba(217, 119, 6, 0.25);
+  background: rgba(30, 80, 229, 0.25);
 }
 
 .btn-disable {
@@ -740,8 +740,8 @@ export default {
 
 .btn-add {
   padding: 9px 20px;
-  background: #d97706;
-  color: white;
+  background: var(--brand);
+  color: var(--brand-fg);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -751,15 +751,15 @@ export default {
 }
 
 .btn-add:hover {
-  background: #b45309;
-  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25);
+  background: var(--brand-hover);
+  box-shadow: var(--shadow-btn);
 }
 
 .config-form {
-  background: #1e293b;
+  background: var(--card-bg);
   padding: 32px;
   border-radius: 12px;
-  border: 1px solid #334155;
+  border: 1px solid var(--card-border);
   max-width: 500px;
 }
 
@@ -771,7 +771,7 @@ export default {
   display: block;
   margin-bottom: 6px;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -779,27 +779,27 @@ export default {
 .form-group select {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #334155;
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   font-size: 14px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   transition: all 0.2s ease;
   font-family: inherit;
-  background-color: #0f172a;
+  background-color: var(--app-bg);
 }
 
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #d97706;
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-ring);
 }
 
 .btn-save {
   width: 100%;
   padding: 11px;
-  background: #d97706;
-  color: white;
+  background: var(--brand);
+  color: var(--brand-fg);
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -809,8 +809,8 @@ export default {
 }
 
 .btn-save:hover:not(:disabled) {
-  background: #b45309;
-  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25);
+  background: var(--brand-hover);
+  box-shadow: var(--shadow-btn);
 }
 
 .btn-save:disabled {
@@ -830,24 +830,24 @@ export default {
 }
 
 .modal {
-  background: #1e293b;
+  background: var(--card-bg);
   padding: 32px;
   border-radius: 16px;
   width: 90%;
   max-width: 420px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  border: 1px solid #334155;
+  border: 1px solid var(--card-border);
 }
 
 .modal h3 {
   margin-bottom: 8px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
 }
 
 .modal p {
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-bottom: 20px;
   font-size: 14px;
 }
@@ -871,21 +871,21 @@ export default {
 
 .btn-cancel {
   background: rgba(51, 65, 85, 0.5);
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .btn-cancel:hover {
   background: #475569;
-  color: #e2e8f0;
+  color: var(--text-secondary);
 }
 
 .btn-confirm {
-  background: #d97706;
-  color: white;
+  background: var(--brand);
+  color: var(--brand-fg);
 }
 
 .btn-confirm:hover {
-  background: #b45309;
+  background: var(--brand-hover);
 }
 
 .toast {

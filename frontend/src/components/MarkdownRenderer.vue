@@ -177,34 +177,34 @@ export default {
   font-weight: 600;
   margin: 20px 0 10px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #667eea;
-  color: #f1f5f9;
+  border-bottom: 2px solid var(--h1-underline);
+  color: var(--text-primary);
 }
 
 .markdown-content h2 {
   font-size: 20px;
   font-weight: 600;
   margin: 18px 0 8px;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .markdown-content h3 {
   font-size: 18px;
   font-weight: 600;
   margin: 16px 0 6px;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .markdown-content h4 {
   font-size: 16px;
   font-weight: 500;
   margin: 14px 0 6px;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .markdown-content p {
   margin: 10px 0;
-  color: #e2e8f0;
+  color: var(--text-secondary);
 }
 
 .markdown-content ul,
@@ -215,12 +215,12 @@ export default {
 
 .markdown-content li {
   margin: 6px 0;
-  color: #e2e8f0;
+  color: var(--text-secondary);
 }
 
 .markdown-content strong {
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .markdown-content em {
@@ -229,47 +229,47 @@ export default {
 }
 
 .markdown-content a {
-  color: #93c5fd;
+  color: var(--brand-light);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: all 0.2s ease;
 }
 
 .markdown-content a:hover {
-  border-bottom-color: #93c5fd;
+  border-bottom-color: var(--brand-light);
 }
 
 .markdown-content code {
-  background-color: #1e293b;
+  background-color: var(--code-bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 14px;
   font-family: 'Consolas', 'Monaco', monospace;
-  color: #fbbf24;
+  color: var(--code-inline-text);
 }
 
 .markdown-content pre {
-  background-color: #0f172a;
+  background-color: var(--code-bg);
   padding: 15px;
   border-radius: 8px;
   overflow-x: auto;
   margin: 10px 0;
-  border: 1px solid #334155;
+  border: 1px solid var(--code-border);
 }
 
 .markdown-content pre code {
   background: none;
   padding: 0;
-  color: #e2e8f0;
+  color: var(--code-text);
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid #667eea;
+  border-left: 4px solid var(--blockquote-border);
   padding: 10px 15px;
   margin: 10px 0;
-  background-color: #1e293b;
+  background-color: var(--blockquote-bg);
   border-radius: 0 4px 4px 0;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 /* 表格样式 - 增强边框和间距 */
@@ -278,16 +278,15 @@ export default {
   border-collapse: collapse;
   margin: 15px 0;
   font-size: 14px;
-  background-color: #1e293b;
+  background-color: var(--card-bg);
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  /* 添加外边框 */
-  border: 2px solid #475569;
+  border: 2px solid var(--card-border);
 }
 
 .markdown-content .data-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--gradient-table-header);
 }
 
 .markdown-content .data-table thead tr th {
@@ -295,12 +294,12 @@ export default {
   font-weight: 600;
   padding: 14px 18px;
   text-align: left;
-  border: 2px solid #475569;
+  border: 2px solid var(--card-border);
   font-size: 14px;
 }
 
 .markdown-content .data-table tbody tr {
-  border-bottom: 2px solid #334155;
+  border-bottom: 2px solid var(--card-border);
 }
 
 .markdown-content .data-table tbody tr:last-child {
@@ -308,18 +307,18 @@ export default {
 }
 
 .markdown-content .data-table tbody tr:hover {
-  background-color: #1a2332;
+  background-color: var(--app-bg);
 }
 
 .markdown-content .data-table tbody tr td {
   padding: 14px 18px;
-  color: #e2e8f0;
-  border: 2px solid #334155;
+  color: var(--text-secondary);
+  border: 2px solid var(--card-border);
   font-size: 14px;
 }
 
 .markdown-content .data-table tbody tr td strong {
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-weight: 600;
 }
 

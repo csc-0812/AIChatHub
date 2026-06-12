@@ -110,12 +110,12 @@ html, body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #0f172a;
+  background-color: var(--app-bg);
   background-image:
-    radial-gradient(circle at 20% 35%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.06) 0%, transparent 40%),
-    radial-gradient(circle at 50% 80%, rgba(245, 158, 11, 0.05) 0%, transparent 50%),
-    linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    radial-gradient(circle at 20% 35%, rgba(45, 107, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(30, 80, 229, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(110, 168, 255, 0.05) 0%, transparent 50%),
+    linear-gradient(180deg, var(--app-bg) 0%, var(--app-bg-secondary) 100%);
   position: relative;
   padding: 20px;
   margin: 0;
