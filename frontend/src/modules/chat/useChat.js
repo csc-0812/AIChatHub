@@ -11,7 +11,7 @@ export function useChat() {
   const isLoading = ref(false)
   const showSidebar = ref(true)
   const currentAssistantMessage = ref(null)
-  const currentAssistantMessageId = ref(null)  // 参考IFA: 当前流式输出的临时消息ID
+  const currentAssistantMessageId = ref(null)  // 当前流式输出的临时消息ID
   const editingSessionId = ref(null)
   const editingTitle = ref('')
   const selectedFiles = ref([])
@@ -120,7 +120,7 @@ export function useChat() {
 
   /**
    * 规范化 content 格式
-   * 参考IFA: content 始终为数组 [{kind: "texts"/"files"/"images", ...}]
+   * content 始终为数组 [{kind: "texts"/"files"/"images", ...}]
    * 同时兼容旧的字符串格式
    */
   function normalizeContent(content) {
@@ -264,7 +264,7 @@ export function useChat() {
       messageContent = messageContent ? `${messageContent}\n${fileInfo}` : fileInfo
     }
 
-    // 参考IFA: 使用临时ID，等待后端 update_user_message 回传真实ID
+    // 使用临时ID，等待后端 update_user_message 回传真实ID
     const tempUserId = `temp-${Date.now()}`
     messages.value.push({
       id: tempUserId,
@@ -282,7 +282,7 @@ export function useChat() {
     // 创建 AbortController，用于支持手动停止
     abortController.value = new AbortController()
 
-    // 参考IFA: 创建AI消息占位，使用临时ID
+    // 创建AI消息占位，使用临时ID
     const tempAiId = `temp-${Date.now() + 1}`
     currentAssistantMessageId.value = tempAiId
     currentAssistantMessage.value = {
@@ -313,7 +313,7 @@ export function useChat() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      // 参考IFA: fetch + ReadableStream SSE 解析
+      // fetch + ReadableStream SSE 解析
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -324,7 +324,7 @@ export function useChat() {
 
         buffer += decoder.decode(value, { stream: true })
         
-        // 参考IFA: 按 \n\n 分隔事件，最后一个可能不完整暂存buffer
+        // 按 \n\n 分隔事件，最后一个可能不完整暂存buffer
         while (buffer.includes('\n\n')) {
           const eventEndIdx = buffer.indexOf('\n\n')
           const eventString = buffer.slice(0, eventEndIdx)
@@ -518,7 +518,7 @@ export function useChat() {
     }
   }
 
-  // 参考IFA: 解析 SSE 事件字符串
+  // 解析 SSE 事件字符串
   function parseAndHandleSSEEvent(eventString) {
     let eventType = ''
     const dataLines = []
@@ -557,7 +557,7 @@ export function useChat() {
 
   /**
    * 处理SSE事件
-   * 参考IFA: 事件类型包括
+   * 事件类型包括
    *   update_user_message → reasoning_content_chunk → content_chunk
    *   → update_assistant_message → done
    */
@@ -571,7 +571,7 @@ export function useChat() {
         break
 
       case 'update_user_message':
-        // 参考IFA: 用后端返回的真实ID替换用户消息的临时ID
+        // 用后端返回的真实ID替换用户消息的临时ID
         if (data.id) {
           const userMsg = messages.value.find(m => m.type === 'user' && m.id.startsWith('temp-'))
           if (userMsg) {
@@ -581,7 +581,7 @@ export function useChat() {
         break
 
       case 'reasoning_content_chunk':
-        // 参考IFA: 推理内容逐块追加到助手消息
+        // 推理内容逐块追加到助手消息
         targetMsg = _getCurrentAssistantMsg()
         if (!targetMsg) return
         if (!targetMsg.reasoning_content) {
@@ -591,14 +591,14 @@ export function useChat() {
         break
 
       case 'content_chunk':
-        // 参考IFA: 同类型 chunk 合并（texts 合并 texts）
+        // 同类型 chunk 合并（texts 合并 texts）
         targetMsg = _getCurrentAssistantMsg()
         if (!targetMsg) return
         _mergeContentChunk(targetMsg.content, data)
         break
 
       case 'update_assistant_message':
-        // 参考IFA: 用真实ID替换临时ID，标记流式结束
+        // 用真实ID替换临时ID，标记流式结束
         targetMsg = _getCurrentAssistantMsg()
         if (!targetMsg) return
         targetMsg.id = data.id
@@ -611,7 +611,7 @@ export function useChat() {
         break
 
       case 'done':
-        // 参考IFA: 流式输出完成，收起推理过程
+        // 流式输出完成，收起推理过程
         targetMsg = _getCurrentAssistantMsg()
         if (targetMsg) {
           targetMsg.isStreaming = false
@@ -669,7 +669,7 @@ export function useChat() {
   }
 
   /**
-   * 参考IFA: 合并结构化 content chunk
+   * 合并结构化 content chunk
    * 同类型 chunk 合并数组（texts → texts, files → files）
    * 创建新引用触发 Vue 响应式
    */

@@ -2,7 +2,7 @@
 聊天服务
 处理智能体对话逻辑
 
-参考IFA: SSE 事件流模式
+SSE 事件流模式
   update_user_message → reasoning_content_chunk* → content_chunk* 
   → update_assistant_message → done
 """
@@ -34,7 +34,7 @@ class ChatService:
         流式聊天，返回SSE格式数据
         使用 RouterAgent 处理消息
 
-        参考IFA: SSE 事件流：
+        SSE 事件流：
           1. session_created (仅新建会话时)
           2. update_user_message (用户消息持久化确认，含消息ID)
           3. reasoning_content_chunk* (Agent推理过程，流式增量)
@@ -196,7 +196,7 @@ class ChatService:
                     "timestamp": real_msg.timestamp.isoformat()
                 })
 
-            # ── 6. 发送 done 事件 (参考IFA: data=null) ──
+            # ── 6. 发送 done 事件 (data=null) ──
             yield self._format_sse_event("done", None)
 
             total_elapsed = time.time() - request_start
@@ -238,7 +238,7 @@ class ChatService:
         """
         格式化SSE事件
 
-        参考IFA: 标准 SSE 格式 `event: xxx\ndata: {...}\n\n`
+        标准 SSE 格式 `event: xxx\ndata: {...}\n\n`
         当 data 为 None 时，data 字段输出 null（如 done 事件）。
 
         Args:

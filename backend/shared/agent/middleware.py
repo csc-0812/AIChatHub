@@ -2,7 +2,7 @@
 Agent Middleware Module
 提供智能体使用的中间件定义
 
-参考IFA: Middleware 通过 get_stream_writer() 发送 custom 事件，
+Middleware 通过 get_stream_writer() 发送 custom 事件，
 前端以 reasoning_content_chunk 类型接收，用于展示推理过程。
 """
 import json
@@ -21,7 +21,7 @@ logger = get_logger("agent.middleware")
 def _try_get_stream_writer():
     """
     安全获取 LangGraph stream_writer
-    参考IFA: get_stream_writer() 是 LangGraph 的上下文感知流写入器，
+    get_stream_writer() 是 LangGraph 的上下文感知流写入器，
     在 astream() 调用内部会把事件写入当前的 SSE 流。
     如果不在流上下文中则返回 None。
     """
@@ -46,7 +46,7 @@ def _emit_reasoning_chunk(message: str):
 class AgentLoggingMiddleware(AgentMiddleware):
     """
     智能体日志记录中间件
-    参考IFA: 拦截 Agent/工具/模型调用事件，通过 get_stream_writer() 
+    拦截 Agent/工具/模型调用事件，通过 get_stream_writer() 
     将推理日志推送到前端 SSE 流。
     """
 
@@ -103,7 +103,7 @@ class AgentLoggingMiddleware(AgentMiddleware):
 
         log_with_trace(logger, logging.INFO, f"[{self.agent_name}] 工具调用: {tool_name}")
 
-        # 参考IFA: 向SSE流推送工具调用开始事件
+        # 向SSE流推送工具调用开始事件
         args_preview = json.dumps(tool_args, ensure_ascii=False)
         if len(args_preview) > 200:
             args_preview = args_preview[:200] + "..."
@@ -116,7 +116,7 @@ class AgentLoggingMiddleware(AgentMiddleware):
             log_with_trace(logger, logging.INFO, 
                 f"[{self.agent_name}] 工具调用完成: {tool_name} (耗时={duration:.2f}s)")
 
-            # 参考IFA: 向SSE流推送工具调用完成事件
+            # 向SSE流推送工具调用完成事件
             result_preview = ""
             if isinstance(response, dict):
                 result_preview = json.dumps(response, ensure_ascii=False)

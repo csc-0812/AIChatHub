@@ -227,7 +227,7 @@ async def chat_stream(
     """
     流式聊天接口
     
-    参考IFA: 使用SSE（Server-Sent Events）方式返回大模型的思考过程和回答
+    使用SSE（Server-Sent Events）方式返回大模型的思考过程和回答
     
     **参数**:
     - **session_id**: 会话ID（必填）

@@ -17,7 +17,7 @@ class MessageRole(str, Enum):
 
 class ContentBlock(BaseModel):
     """结构化内容块
-    参考IFA: content = [{kind: "texts"/"files"/"images", ...}]
+    content = [{kind: "texts"/"files"/"images", ...}]
     """
     kind: str  # "texts", "files", "images"
     texts: Optional[List[str]] = None
@@ -27,7 +27,7 @@ class ContentBlock(BaseModel):
 
 class ChatMessage(BaseModel):
     """聊天消息
-    参考IFA: 消息包含 id、role、content(结构化数组)、reasoning_content
+    消息包含 id、role、content(结构化数组)、reasoning_content
     """
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: MessageRole
