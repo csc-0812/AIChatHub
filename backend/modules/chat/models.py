@@ -156,6 +156,13 @@ class FileUploadResponse(BaseModel):
     message: str = "文件上传成功"
 
 
+class DeleteMessageResponse(BaseModel):
+    """删除消息响应"""
+    session_id: str
+    deleted_count: int
+    message: str = "消息删除成功"
+
+
 class ChatAttachment(BaseModel):
     """聊天附件"""
     file_id: str

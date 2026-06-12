@@ -107,19 +107,35 @@
         <div v-for="(message, index) in messages" :key="message.id || index" 
              class="message" :class="message.type">
           <!-- 用户消息 -->
-          <div v-if="message.type === 'user'" class="message-bubble user">
-            <!-- 显示图片附件 -->
-            <div v-if="message.files && message.files.length > 0" class="message-attachments">
-              <div v-for="(file, idx) in message.files" :key="idx" class="attachment-item">
-                <img v-if="file.file_type === 'image'" :src="apiBaseUrl + file.url" class="message-image" />
-                <div v-else class="file-attachment">
-                  <span class="file-icon">📄</span>
-                  <span class="file-name">{{ file.filename }}</span>
+          <div v-if="message.type === 'user'" class="user-message-wrapper">
+            <div class="message-bubble user">
+              <!-- 显示图片附件 -->
+              <div v-if="message.files && message.files.length > 0" class="message-attachments">
+                <div v-for="(file, idx) in message.files" :key="idx" class="attachment-item">
+                  <img v-if="file.file_type === 'image'" :src="apiBaseUrl + file.url" class="message-image" />
+                  <div v-else class="file-attachment">
+                    <span class="file-icon">📄</span>
+                    <span class="file-name">{{ file.filename }}</span>
+                  </div>
                 </div>
               </div>
+              <div class="message-content">{{ getPlainText(message.content) }}</div>
+              <div class="message-time">{{ message.time }}</div>
             </div>
-            <div class="message-content">{{ getPlainText(message.content) }}</div>
-            <div class="message-time">{{ message.time }}</div>
+            <!-- 鼠标悬停时出现的操作按钮 -->
+            <div class="message-actions">
+              <button
+                class="msg-action-btn delete-msg-btn"
+                @click.stop="deleteMessage(message.id, handleLogout)"
+                :disabled="isLoading"
+                title="删除消息"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
           </div>
           
           <!-- AI消息 -->
@@ -833,6 +849,58 @@ export default {
   color: #f1f5f9;
   border: 1px solid #334155;
   border-bottom-right-radius: 6px;
+}
+
+/* 用户消息包裹器 - 用于 hover 显示操作按钮 */
+.user-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  position: relative;
+}
+
+/* 消息操作按钮 - 默认隐藏，hover 时显示 */
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.user-message-wrapper:hover .message-actions {
+  opacity: 1;
+}
+
+.msg-action-btn {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 5px 7px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.msg-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+.msg-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.delete-msg-btn:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .message-bubble.assistant {

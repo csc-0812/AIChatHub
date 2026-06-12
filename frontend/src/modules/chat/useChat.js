@@ -383,6 +383,52 @@ export function useChat() {
     }
   }
 
+  // 删除消息（同时删除配对的问答消息）
+  async function deleteMessage(messageId, onLogout) {
+    if (!currentSessionId.value) return
+    if (!confirm('确定要删除这条消息及其对应的回复吗？')) return
+
+    try {
+      const result = await chatApi.deleteMessage(currentSessionId.value, messageId)
+      
+      // 从本地消息列表中移除被删除的消息
+      if (result.deleted_count > 0) {
+        const idx = messages.value.findIndex(m => m.id === messageId)
+        if (idx !== -1) {
+          const targetMsg = messages.value[idx]
+          const indicesToDelete = new Set([idx])
+          
+          if (targetMsg.type === 'user') {
+            // 用户消息：同时删除紧随其后的 assistant 回复
+            if (idx + 1 < messages.value.length && messages.value[idx + 1].type === 'assistant') {
+              indicesToDelete.add(idx + 1)
+            }
+          } else if (targetMsg.type === 'assistant') {
+            // AI 消息：同时删除前一条 user 消息
+            if (idx - 1 >= 0 && messages.value[idx - 1].type === 'user') {
+              indicesToDelete.add(idx - 1)
+            }
+          }
+          
+          // 从大到小删除，避免索引变化
+          const sortedIndices = [...indicesToDelete].sort((a, b) => b - a)
+          for (const i of sortedIndices) {
+            messages.value.splice(i, 1)
+          }
+        }
+      }
+      
+      // 刷新会话列表（更新消息计数）
+      await loadSessions(onLogout)
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) {
+        return
+      }
+      console.error('删除消息失败:', error)
+      alert('删除消息失败')
+    }
+  }
+
   // 参考IFA: 解析 SSE 事件字符串
   function parseAndHandleSSEEvent(eventString) {
     let eventType = ''
@@ -664,6 +710,7 @@ export function useChat() {
     removeFile,
     sendMessage,
     stopMessage,
+    deleteMessage,
     toggleSidebar,
     formatDate,
     getPlainText,

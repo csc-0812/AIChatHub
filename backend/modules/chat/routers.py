@@ -13,7 +13,8 @@ from .models import (
     SessionListResponse,
     RenameSessionRequest,
     RenameSessionResponse,
-    FileUploadResponse
+    FileUploadResponse,
+    DeleteMessageResponse
 )
 from .services import chat_service
 from modules.auth.routers import get_current_user
@@ -154,6 +155,40 @@ async def clear_session_messages(
         return {"message": "会话消息已清空"}
     else:
         raise HTTPException(status_code=500, detail="清空会话消息失败")
+
+
+@router.delete("/sessions/{session_id}/messages/{message_id}", response_model=DeleteMessageResponse)
+async def delete_message(
+    session_id: str,
+    message_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    删除会话中的指定消息及其配对的问答消息
+    
+    删除逻辑：
+    - 如果删除的是用户消息，同时删除紧随其后的 AI 回复
+    - 如果删除的是 AI 消息，同时删除前一条用户消息
+    
+    - **session_id**: 会话ID
+    - **message_id**: 要删除的消息ID
+    """
+    session = chat_service.session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    # 检查权限
+    if session.user_id and session.user_id != current_user.username:
+        raise HTTPException(status_code=403, detail="无权操作此会话")
+    
+    deleted_count = chat_service.session_manager.delete_message(session_id, message_id)
+    if deleted_count is None:
+        raise HTTPException(status_code=404, detail="消息不存在")
+    
+    return DeleteMessageResponse(
+        session_id=session_id,
+        deleted_count=deleted_count
+    )
 
 
 @router.put("/sessions/{session_id}/rename", response_model=RenameSessionResponse)

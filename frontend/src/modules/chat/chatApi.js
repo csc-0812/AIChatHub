@@ -169,6 +169,24 @@ export async function getModelList() {
 }
 
 /**
+ * 删除会话中的消息（同时删除对应的回复/提问）
+ * @param {string} sessionId - 会话ID
+ * @param {string} messageId - 要删除的消息ID
+ */
+export async function deleteMessage(sessionId, messageId) {
+  const response = await request(`/chat/sessions/${sessionId}/messages/${messageId}`, {
+    method: 'DELETE'
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || '删除消息失败')
+  }
+
+  return response.json()
+}
+
+/**
  * 发送聊天消息（SSE流式）
  * @param {string} sessionId
  * @param {string} message
