@@ -2,6 +2,7 @@
 聊天模块路由
 提供会话管理和SSE流式聊天接口
 """
+import logging
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from typing import Optional, List
@@ -18,6 +19,7 @@ from .services import chat_service
 from modules.auth.routers import get_current_user
 from modules.auth.models import User
 from shared.utils.file_handler import file_handler
+from shared.utils.logger import chat_logger, set_trace_id, log_with_trace
 
 
 router = APIRouter(prefix="/chat", tags=["聊天"])
@@ -202,10 +204,22 @@ async def chat_stream(
     });
     ```
     """
+    # 生成 trace_id 用于追踪整个请求链路
+    trace_id = set_trace_id()
+
+    log_with_trace(chat_logger, logging.INFO,
+        f"← 接收前端消息: user={current_user.username}, "
+        f"session_id={request.session_id}, "
+        f"message_preview={request.message[:50]}{'...' if len(request.message) > 50 else ''}, "
+        f"model_id={request.model_id}")
+
     try:
         # 检查会话是否存在，如果不存在则创建新会话
         session = chat_service.session_manager.get_session(request.session_id)
         if session and session.user_id and session.user_id != current_user.username:
+            log_with_trace(chat_logger, logging.WARNING,
+                f"权限拒绝: user={current_user.username} 试图访问 session={request.session_id} "
+                f"(owner={session.user_id})")
             raise HTTPException(status_code=403, detail="无权访问此会话")
         
         return StreamingResponse(
@@ -225,6 +239,8 @@ async def chat_stream(
     except HTTPException:
         raise
     except Exception as e:
+        log_with_trace(chat_logger, logging.ERROR,
+            f"聊天接口异常: user={current_user.username}, error={str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

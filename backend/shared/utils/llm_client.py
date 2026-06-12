@@ -2,11 +2,12 @@
 大语言模型客户端封装
 使用LangChain封装OpenAI模型
 """
+import logging
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain.chat_models import init_chat_model
 from .config_loader import config_loader
-from .logger import llm_logger
+from .logger import llm_logger, log_with_trace
 
 
 class LLMClient:
@@ -106,6 +107,9 @@ class LLMClient:
         Returns:
             AI的回复内容
         """
+        import time
+        start = time.time()
+
         # 确保模型已初始化（检查配置是否有变化）
         self._ensure_model_initialized()
 
@@ -115,8 +119,13 @@ class LLMClient:
         # 转换消息格式
         langchain_messages = self._convert_messages(messages)
 
+        log_with_trace(llm_logger, logging.INFO, f"LLM同步调用开始 (消息数={len(messages)})")
+
         # 调用模型
         response = self._model.invoke(langchain_messages)
+
+        elapsed = time.time() - start
+        log_with_trace(llm_logger, logging.INFO, f"LLM同步调用完成 (耗时={elapsed:.2f}s, 响应长度={len(response.content)})")
 
         return response.content
 
@@ -130,6 +139,9 @@ class LLMClient:
         Returns:
             AI的回复内容
         """
+        import time
+        start = time.time()
+
         # 确保模型已初始化（检查配置是否有变化）
         self._ensure_model_initialized()
 
@@ -139,8 +151,13 @@ class LLMClient:
         # 转换消息格式
         langchain_messages = self._convert_messages(messages)
 
+        log_with_trace(llm_logger, logging.INFO, f"LLM异步调用开始 (消息数={len(messages)})")
+
         # 异步调用模型
         response = await self._model.ainvoke(langchain_messages)
+
+        elapsed = time.time() - start
+        log_with_trace(llm_logger, logging.INFO, f"LLM异步调用完成 (耗时={elapsed:.2f}s, 响应长度={len(response.content)})")
 
         return response.content
 
@@ -154,6 +171,9 @@ class LLMClient:
         Yields:
             AI回复的每个token
         """
+        import time
+        start = time.time()
+
         # 确保模型已初始化（检查配置是否有变化）
         self._ensure_model_initialized()
 
@@ -163,10 +183,17 @@ class LLMClient:
         # 转换消息格式
         langchain_messages = self._convert_messages(messages)
 
+        log_with_trace(llm_logger, logging.INFO, f"LLM流式调用开始 (消息数={len(messages)})")
+
         # 流式调用模型
+        token_count = 0
         async for chunk in self._model.astream(langchain_messages):
             if chunk.content:
+                token_count += 1
                 yield chunk.content
+
+        elapsed = time.time() - start
+        log_with_trace(llm_logger, logging.INFO, f"LLM流式调用完成 (耗时={elapsed:.2f}s, token数={token_count})")
 
     def _convert_messages(self, messages: List[Dict[str, str]]) -> List[Any]:
         """将标准消息格式转换为LangChain消息格式"""

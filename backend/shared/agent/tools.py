@@ -4,19 +4,19 @@ Agent Tools Module - 计划一体化平台
 """
 
 import json
-import logging
 from typing import List, Dict, Any, Optional, Type
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from shared.utils.logger import get_logger
 from .tools_data import (
     get_report_data,
     get_simulation_data,
     get_root_cause_data,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger("agent.tools")
 
 
 # ============================================================================

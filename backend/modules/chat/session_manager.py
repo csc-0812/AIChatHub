@@ -3,11 +3,13 @@
 负责聊天会话的创建、查询、更新和删除
 """
 import uuid
+import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from shared.agent import create_router_agent, RouterAgent
 from shared.utils.redis_client import redis_client
+from shared.utils.logger import chat_logger, log_with_trace, get_trace_id
 from .models import ChatMessage, ChatSession, MessageRole
 
 
@@ -45,11 +47,15 @@ class SessionManager:
             self._add_session_to_user_list(user_id, session_id)
         
         self._create_router_agent(session_id)
-        
+
+        log_with_trace(chat_logger, logging.INFO,
+            f"会话创建: session_id={session_id}, user={user_id}, title={session.title}, max_context={max_context_length}")
+
         return session
     
     def _create_router_agent(self, session_id: str):
         """为会话创建RouterAgent"""
+        log_with_trace(chat_logger, logging.INFO, f"创建 RouterAgent: session_id={session_id}")
         agent = create_router_agent()
         self._router_agents[session_id] = agent
         return agent
@@ -61,14 +67,17 @@ class SessionManager:
         
         session = self.get_session(session_id)
         if not session:
+            log_with_trace(chat_logger, logging.WARNING, f"RouterAgent 不存在且会话未找到: session_id={session_id}")
             return None
         
+        log_with_trace(chat_logger, logging.INFO, f"RouterAgent 内存中不存在，重建: session_id={session_id}")
         return self._create_router_agent(session_id)
     
     def get_session(self, session_id: str) -> Optional[ChatSession]:
         """获取会话"""
         session_data = self.redis.get(self._get_session_key(session_id))
         if not session_data:
+            log_with_trace(chat_logger, logging.DEBUG, f"会话未命中缓存: session_id={session_id}")
             return None
         
         return ChatSession.model_validate_json(session_data)
@@ -76,6 +85,7 @@ class SessionManager:
     def _save_session(self, session: ChatSession):
         """保存会话到Redis"""
         session_key = self._get_session_key(session.session_id)
+        log_with_trace(chat_logger, logging.DEBUG, f"持久化会话: session_id={session.session_id}, 消息数={len(session.messages)}")
         self.redis.set(
             session_key, 
             session.model_dump_json(),
@@ -127,8 +137,11 @@ class SessionManager:
         """删除会话"""
         session = self.get_session(session_id)
         if not session:
+            log_with_trace(chat_logger, logging.WARNING, f"删除会话失败(不存在): session_id={session_id}")
             return False
-        
+
+        log_with_trace(chat_logger, logging.INFO, f"删除会话: session_id={session_id}, user={user_id}")
+
         self.redis.delete(self._get_session_key(session_id))
         
         if session_id in self._router_agents:

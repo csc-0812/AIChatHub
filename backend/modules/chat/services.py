@@ -3,10 +3,14 @@
 处理智能体对话逻辑
 """
 import json
+import logging
+import time
+import traceback
 from typing import AsyncGenerator, Dict, Any, Optional, List
 
 from .session_manager import SessionManager
 from .models import MessageRole
+from shared.utils.logger import chat_logger, log_with_trace
 
 
 class ChatService:
@@ -35,8 +39,14 @@ class ChatService:
         Yields:
             SSE格式的事件数据
         """
+        request_start = time.time()
+        log_with_trace(chat_logger, logging.INFO,
+            f"聊天请求开始: user={user_id}, session_id={session_id}, "
+            f"message_len={len(message)}, model_id={model_id}")
+
         session = self.session_manager.get_session(session_id)
         if not session:
+            log_with_trace(chat_logger, logging.INFO, f"会话不存在，创建新会话: session_id={session_id}")
             session = self.session_manager.create_session(
                 user_id=user_id,
                 max_context_length=10
@@ -54,11 +64,13 @@ class ChatService:
         session.add_message(MessageRole.USER, message)
         
         messages = self._build_messages(session)
+        log_with_trace(chat_logger, logging.INFO, f"上下文消息数: {len(messages)}, 最大={session.max_context_length}")
         
         agent = self.session_manager.get_router_agent(session_id)
         
         # 如果指定了 model_id，则使用对应模型的配置创建 RouterAgent
         if model_id:
+            log_with_trace(chat_logger, logging.INFO, f"使用指定模型: model_id={model_id}")
             from modules.models_config.services import models_config_service
             from shared.agent import create_router_agent
             from shared.utils.llm_client import LLMClient
@@ -77,8 +89,11 @@ class ChatService:
                     "max_retries": temp_llm.config.get("max_retries", 3)
                 })
                 agent = create_router_agent(chat_model=temp_llm._model)
+            else:
+                log_with_trace(chat_logger, logging.WARNING, f"模型未找到: model_id={model_id}, 回退到默认模型")
         
         if not agent:
+            log_with_trace(chat_logger, logging.ERROR, "无法创建 RouterAgent")
             yield self._format_sse_event("error", {"message": "无法创建智能体"})
             return
         
@@ -86,6 +101,10 @@ class ChatService:
         prev_content_len = 0
 
         try:
+            log_with_trace(chat_logger, logging.INFO, "开始 Agent 流式调用...")
+            stream_start = time.time()
+            chunk_count = 0
+
             async for event in agent.stream(messages):
                 if "content" in event:
                     content = event["content"]
@@ -93,8 +112,13 @@ class ChatService:
                     if len(content) > prev_content_len:
                         incremental = content[prev_content_len:]
                         yield self._format_sse_event("answer_chunk", {"chunk": incremental})
+                        chunk_count += 1
                     prev_content_len = len(content)
                     full_content = content
+
+            stream_elapsed = time.time() - stream_start
+            log_with_trace(chat_logger, logging.INFO,
+                f"Agent 流式调用完成 (耗时={stream_elapsed:.2f}s, chunk数={chunk_count}, 响应长度={len(full_content)})")
             
             yield self._format_sse_event("done", {
                 "session_id": session_id,
@@ -106,7 +130,16 @@ class ChatService:
                 session.add_message(MessageRole.ASSISTANT, full_content)
                 self.session_manager._save_session(session)
             
+            total_elapsed = time.time() - request_start
+            log_with_trace(chat_logger, logging.INFO,
+                f"聊天请求完成: user={user_id}, session_id={session_id}, "
+                f"总耗时={total_elapsed:.2f}s, 响应长度={len(full_content)}, "
+                f"会话消息总数={len(session.messages)}")
+            
         except Exception as e:
+            log_with_trace(chat_logger, logging.ERROR,
+                f"聊天请求异常: user={user_id}, session_id={session_id}, "
+                f"error={str(e)}\n{traceback.format_exc()}")
             yield self._format_sse_event("error", {"message": str(e)})
     
     def _build_messages(self, session) -> List[Dict[str, Any]]:

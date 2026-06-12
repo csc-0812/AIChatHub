@@ -1,4 +1,4 @@
 {
-  "api_base_url": "http://localhost:8000/api",
-  "app_name": "Demo"
+  "api_base_url": "http://localhost:3000/api/v1",
+  "app_name": "PlanAskDemo"
 }

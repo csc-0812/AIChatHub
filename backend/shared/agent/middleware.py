@@ -9,8 +9,9 @@ from datetime import datetime
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, ModelResponse
 from langchain.agents.middleware.summarization import SummarizationMiddleware
 
+from shared.utils.logger import get_logger, log_with_trace, get_trace_id
 
-logger = logging.getLogger(__name__)
+logger = get_logger("agent.middleware")
 
 
 class AgentLoggingMiddleware(AgentMiddleware):
@@ -18,10 +19,10 @@ class AgentLoggingMiddleware(AgentMiddleware):
     智能体日志记录中间件
     记录智能体的所有操作和响应
     """
-    
+
     def __init__(self, agent_name: str = "Agent"):
         self.agent_name = agent_name
-    
+
     async def awrap_model_call(
         self,
         request: ModelRequest,
@@ -29,36 +30,38 @@ class AgentLoggingMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         """异步包装模型调用，记录请求和响应"""
         start_time = datetime.now()
-        
-        logger.info(f"[{self.agent_name}] Model call started")
+        trace_id = get_trace_id()
+
+        log_with_trace(logger, logging.INFO, f"[{self.agent_name}] 模型调用开始 (消息数={len(request.messages)})")
         logger.debug(f"[{self.agent_name}] Request messages: {request.messages}")
-        
+
         try:
             response = await handler(request)
-            
+
             end_time = datetime.now()
             duration = (end_time - start_time).total_seconds()
-            
-            logger.info(f"[{self.agent_name}] Model call completed in {duration:.2f}s")
+
+            log_with_trace(logger, logging.INFO, f"[{self.agent_name}] 模型调用完成 (耗时={duration:.2f}s)")
             logger.debug(f"[{self.agent_name}] Response: {response}")
-            
+
             return response
-        
+
         except Exception as e:
-            logger.error(f"[{self.agent_name}] Model call failed: {str(e)}")
+            log_with_trace(logger, logging.ERROR, f"[{self.agent_name}] 模型调用失败: {str(e)}")
             raise
-    
+
     async def awrap_tool_call(self, request, handler):
         """异步包装工具调用，记录工具调用信息"""
-        logger.info(f"[{self.agent_name}] Tool call: {request.tool_call.get('name')}")
+        tool_name = request.tool_call.get('name', 'unknown')
+        log_with_trace(logger, logging.INFO, f"[{self.agent_name}] 工具调用: {tool_name}")
         logger.debug(f"[{self.agent_name}] Tool args: {request.tool_call.get('args')}")
-        
+
         try:
             response = await handler(request)
-            logger.info(f"[{self.agent_name}] Tool call completed")
+            log_with_trace(logger, logging.INFO, f"[{self.agent_name}] 工具调用完成: {tool_name}")
             return response
         except Exception as e:
-            logger.error(f"[{self.agent_name}] Tool call failed: {str(e)}")
+            log_with_trace(logger, logging.ERROR, f"[{self.agent_name}] 工具调用失败 [{tool_name}]: {str(e)}")
             raise
 
 

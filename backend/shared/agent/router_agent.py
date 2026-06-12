@@ -3,14 +3,19 @@ Router Agent Module
 基于LangGraph构建的流式智能路由器智能体
 负责用户意图识别和简单聊天
 """
+import logging
+import time
 from typing import Optional, Any, AsyncGenerator, Dict, List
 from langchain.agents import create_agent, AgentState
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph.state import CompiledStateGraph
 
+from shared.utils.logger import get_logger, log_with_trace
 from .tools import BASIC_TOOLS
 from .prompts import router_prompt
 from .middleware import create_default_middleware
+
+logger = get_logger("agent.router")
 
 
 class RouterAgent:
@@ -41,6 +46,9 @@ class RouterAgent:
             编译后的状态图
         """
         if self._agent is None:
+            build_start = time.time()
+            log_with_trace(logger, logging.INFO, "开始构建 RouterAgent...")
+
             chat_model = self._init_model()
             
             middleware = create_default_middleware(
@@ -55,6 +63,11 @@ class RouterAgent:
                 middleware=middleware,
                 system_prompt=router_prompt
             )
+
+            elapsed = time.time() - build_start
+            log_with_trace(logger, logging.INFO,
+                f"RouterAgent 构建完成 (耗时={elapsed:.2f}s, 工具数={len(BASIC_TOOLS)}, "
+                f"中间件数={len(middleware)}, system_prompt长度={len(str(router_prompt))})")
         
         return self._agent
     
@@ -106,6 +119,9 @@ class RouterAgent:
         Yields:
             流式响应事件
         """
+        stream_start = time.time()
+        log_with_trace(logger, logging.INFO, f"Agent 流式执行开始 (消息数={len(messages)})")
+
         agent = self.build()
         
         state: AgentState = {
@@ -117,10 +133,16 @@ class RouterAgent:
             ]
         }
         
+        event_count = 0
         async for event in agent.astream(state, **kwargs):
             formatted = self._format_stream_event(event)
+            event_count += 1
             if formatted:
                 yield formatted
+
+        elapsed = time.time() - stream_start
+        log_with_trace(logger, logging.INFO, 
+            f"Agent 流式执行完成 (耗时={elapsed:.2f}s, 总事件数={event_count})")
     
     def _format_response(self, result: AgentState) -> Dict[str, Any]:
         """格式化智能体响应"""
