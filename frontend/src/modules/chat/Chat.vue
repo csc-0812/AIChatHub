@@ -227,7 +227,23 @@
             
             <!-- 流式输出中指示 -->
             <span v-if="message.isStreaming" class="streaming-cursor">▊</span>
-            <div class="message-time">{{ message.time }}</div>
+            <!-- 时间 + 导出按钮行 -->
+            <div class="assistant-footer">
+              <span class="message-time">{{ message.time }}</span>
+              <button
+                v-if="!message.isStreaming"
+                class="msg-action-btn export-pdf-msg-btn"
+                @click.stop="exportSingleMessage(message)"
+                title="导出为 PDF"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         
@@ -753,6 +769,29 @@ export default {
   letter-spacing: -0.2px;
 }
 
+/* AI 消息底部栏：时间在左，导出按钮在右 */
+.assistant-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.export-pdf-msg-btn {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease;
+}
+
+.message-bubble.assistant:hover .export-pdf-msg-btn {
+  opacity: 1 !important;
+}
+
+.export-pdf-msg-btn:hover {
+  color: var(--brand-light) !important;
+  background: var(--brand-bg-hover) !important;
+  border-color: rgba(30, 80, 229, 0.3) !important;
+}
+
 /* 个人管理菜单 */
 .user-menu-container { position: relative; }
 
@@ -1040,8 +1079,9 @@ export default {
 }
 
 .answer-content { line-height: 1.65; font-size: 15px; }
-.message-time { font-size: 11px; color: var(--text-placeholder); margin-top: 6px; text-align: right; }
-.message-bubble.user .message-time { color: #475569; }
+.message-time { font-size: 11px; color: var(--text-placeholder); margin-top: 6px; }
+.message-bubble.user .message-time { color: #475569; text-align: right; }
+.assistant-footer .message-time { margin-top: 0; text-align: left; }
 
 /* 消息附件 */
 .message-attachments { margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 8px; }

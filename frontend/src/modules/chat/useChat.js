@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import * as chatApi from './chatApi.js'
+import { exportMessageToPDF as doExportMessage } from '../../utils/pdfExport.js'
 
 export function useChat() {
   // 状态
@@ -751,6 +752,13 @@ export function useChat() {
     return model ? model.model : '默认模型'
   }
 
+  // 导出单条消息为 PDF
+  function exportSingleMessage(message) {
+    if (!message) return
+    const title = currentSessionTitle.value || 'AI 回复'
+    doExportMessage(message, title)
+  }
+
   // 格式化日期
   function formatDate(dateString) {
     const date = new Date(dateString)
@@ -817,6 +825,8 @@ export function useChat() {
     loadModels,
     toggleModelDropdown,
     selectModel,
-    getSelectedModelName
+    getSelectedModelName,
+    // PDF 导出
+    exportSingleMessage
   }
 }
