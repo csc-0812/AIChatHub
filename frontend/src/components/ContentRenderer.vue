@@ -1,8 +1,11 @@
 <template>
   <div class="content-renderer">
     <div v-for="(segment, index) in contentSegments" :key="index">
-      <MarkdownRenderer v-if="segment.type === 'markdown'" :content="segment.content" />
+      <MarkdownRenderer v-if="segment.type === 'markdown'" :content="segment.content" :is-streaming="isStreaming" />
       <ChartRenderer v-else-if="segment.type === 'chart'" :chart-data="segment.data" />
+      <div v-else-if="segment.type === 'loading'" class="chart-loading">
+        📊 图表渲染中...
+      </div>
     </div>
   </div>
 </template>
@@ -19,6 +22,11 @@ export default {
     content: {
       type: [String, Array],
       required: true
+    },
+    // 是否正在流式输出中（用于隐藏不完整的图表块）
+    isStreaming: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
@@ -47,6 +55,56 @@ export default {
       content = content.replace(/<tool_calls>[\s\S]*?<\/tool_calls>/g, '')
       content = content.replace(/<tool[\s]+call[\s\S]*?<\/tool_call[\s]*>/g, '')
       content = content.replace(/<\/?tool_calls\/?\s*>/g, '')
+
+      // 流式输出中：截断未闭合的结构化块（图表JSON等），避免显示原始数据
+      // 等 </chart> 闭合后再整体渲染图表
+      if (this.isStreaming) {
+        let truncated = false
+
+        // 检测1：未闭合的 <chart> 标签
+        const openIdx = content.lastIndexOf('<chart>')
+        const closeIdx = content.lastIndexOf('</chart>')
+        if (openIdx > closeIdx && openIdx !== -1) {
+          content = content.slice(0, openIdx)
+          truncated = true
+        }
+
+        // 检测2：末尾有未闭合的 JSON 对象/数组（LLM 正在输出图表数据）
+        // 匹配以 { 或 [ 或 ' 开头且未闭合的数据块
+        if (!truncated) {
+          const lastLine = content.split('\n').pop().trim()
+          // 常见模式：['chart' / {"chart" / {'chart' / [ / { 开头
+          if (/^(\[|[\{'].*(?:chartType|chart_type|"chart)|\{$)/.test(lastLine)) {
+            // 回溯到包含该起始标记的行首
+            const jsonStart = content.lastIndexOf(lastLine)
+            if (jsonStart > 0) {
+              // 确保不是在一行的中间（至少前面有换行或内容开头）
+              const before = content.slice(0, jsonStart)
+              if (before.endsWith('\n') || before === '') {
+                content = content.slice(0, jsonStart).trimEnd()
+                truncated = true
+              }
+            }
+          }
+        }
+
+        // 检测3：末尾有 ``` 代码块但未关闭
+        if (!truncated) {
+          const codeBlockCount = (content.match(/```/g) || []).length
+          if (codeBlockCount % 2 === 1) {
+            // 奇数个 ``` → 有未闭合代码块
+            const lastCode = content.lastIndexOf('```')
+            content = content.slice(0, lastCode).trimEnd()
+            truncated = true
+          }
+        }
+
+        if (truncated) {
+          segments.push({ type: 'markdown', content: content.trimEnd() })
+          segments.push({ type: 'loading' })
+          return segments
+        }
+      }
 
       // HTML 实体解码（多层解码，处理 LLM 可能的重复转义）
       for (let i = 0; i < 3; i++) {
@@ -154,5 +212,22 @@ export default {
 <style scoped>
 .content-renderer {
   width: 100%;
+}
+
+.chart-loading {
+  padding: 16px 20px;
+  margin: 10px 0;
+  background: #1e293b;
+  border: 1px dashed #475569;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 </style>

@@ -3,11 +3,12 @@ Router Agent Module
 基于LangGraph构建的流式智能路由器智能体
 负责用户意图识别和简单聊天
 """
+import json
 import logging
 import time
 from typing import Optional, Any, AsyncGenerator, Dict, List
 from langchain.agents import create_agent, AgentState
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk, ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
 from shared.utils.logger import get_logger, log_with_trace
@@ -113,12 +114,11 @@ class RouterAgent:
         流式运行智能体
 
         使用双流模式:
-          - "values":  获取状态快照（含完整的 messages 列表）
-          - "custom":  获取 Middleware 推送的自定义事件（工具调用日志等）
+          - "messages": 拦截 LLM 流式输出，每 token 触发一次，实现真正的逐字流式
+          - "custom":   获取 Middleware 推送的自定义事件（工具调用日志等）
 
-        LangGraph stream_mode="values" 的 chunk 格式为:
-          {"messages": [HumanMessage, AIMessage, ToolMessage, ...], ...}
-          即完整的状态字典，"messages" 的值是消息列表
+        messages 模式 chunk 格式: (AIMessageChunk, metadata) 元组
+          其中 AIMessageChunk.content 为当前 token 的增量文本
         
         事件类型:
           - reasoning_content_chunk: Agent推理/工具调用日志（string增量）
@@ -145,21 +145,29 @@ class RouterAgent:
             ]
         }
 
+        # 令牌缓冲区：避免逐 token 发 SSE（频率过高），攒够一批再发送
+        CONTENT_CHUNK_SIZE = 100    # 每攒 100 个字符发送一次
+        text_buffer = ""            # 令牌缓冲区
         event_count = 0
         reasoning_buffer = []       # 收集推理内容
-        prev_text = ""              # 用于增量文本对比
         final_text = ""             # 最终收集的文本
+        _seen_tool_ids = set()      # 已发送过 reasoning 的 tool_call id（去重）
 
-        # 记录初始消息数量，用于过滤本轮之前的旧消息
-        # values 模式返回完整状态快照，内含所有历史消息
-        # 仅从本轮新增的消息中提取内容，避免拿到上一轮的 AIMessage
-        initial_msg_count = len(state["messages"])
+        def _flush_content_buffer():
+            """清空令牌缓冲区，发送一个 content_chunk 事件"""
+            nonlocal text_buffer
+            if text_buffer:
+                yield {
+                    "event_type": "content_chunk",
+                    "content": [{"kind": "texts", "texts": [text_buffer]}]
+                }
+                text_buffer = ""
 
-        # values 模式: 每个 chunk 是完整状态 {"messages": [...]}
+        # messages 模式: LLM 每输出一个 token 即触发，真正 token 级流式
         # custom 模式: Middleware 通过 get_stream_writer() 推送的事件
         async for sm, chunk in agent.astream(
             state, 
-            stream_mode=["values", "custom"],
+            stream_mode=["messages", "custom"],
             **kwargs
         ):
             event_count += 1
@@ -175,21 +183,67 @@ class RouterAgent:
                         }
                         reasoning_buffer.append(reasoning)
 
-            elif sm == "values":
-                # values 事件：完整状态快照 {"messages": [msg_list], ...}
-                # 只从本轮新增的消息中提取内容
-                text = self._extract_content_from_values(chunk, skip_count=initial_msg_count)
-                if text:
-                    # 只发送增量部分，token 级别流式
-                    if len(text) > len(prev_text):
-                        incremental = text[len(prev_text):]
-                        if incremental:
-                            yield {
-                                "event_type": "content_chunk",
-                                "content": [{"kind": "texts", "texts": [incremental]}]
-                            }
-                    prev_text = text
-                    final_text = text
+            elif sm == "messages":
+                # messages 模式: (message, metadata) 元组
+                # 从 messages 流中同时提取推理事件（工具调用/返回）和答案内容
+                # 避免依赖 middleware custom 事件（可能被 LangGraph 批量缓冲）
+                msg = chunk[0] if isinstance(chunk, tuple) and len(chunk) >= 1 else chunk
+                
+                # 检测工具调用：Agent 决定使用工具时产生含 tool_calls 的 AIMessage
+                # 注意：messages 流式模式会逐步流出 AIMessageChunk，同一工具调用会出现多次
+                # 策略：跳过空参数的中间状态 + 按 id 去重，只发送完整的一次
+                if isinstance(msg, (AIMessage, AIMessageChunk)) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        tc_id = tc.get('id', '')
+                        name = tc.get('name', 'unknown')
+                        args = tc.get('args', {})
+
+                        # 跳过空参数（中间流式状态，tool_calls 还没构建完）
+                        if not args:
+                            continue
+
+                        # 去重：同一个 tool_call 只发一次 reasoning
+                        if tc_id and tc_id in _seen_tool_ids:
+                            continue
+                        if tc_id:
+                            _seen_tool_ids.add(tc_id)
+
+                        args_str = json.dumps(args, ensure_ascii=False)
+                        if len(args_str) > 200:
+                            args_str = args_str[:200] + '...'
+                        reasoning = f"⚙️ 调用工具: {name}\n参数: {args_str}"
+                        yield {"event_type": "reasoning_content_chunk", "content": reasoning}
+                        reasoning_buffer.append(reasoning)
+                
+                # 检测工具返回结果
+                if isinstance(msg, ToolMessage):
+                    tool_name = msg.name if hasattr(msg, 'name') else 'unknown'
+                    content_str = str(msg.content)
+                    if len(content_str) > 300:
+                        content_str = content_str[:300] + '...'
+                    reasoning = f"✅ 工具 [{tool_name}] 返回结果"
+                    yield {"event_type": "reasoning_content_chunk", "content": reasoning}
+                    reasoning_buffer.append(reasoning)
+                
+                # 处理文本内容（跳过仅有 tool_calls 无内容的 AIMessage）
+                if (isinstance(msg, (AIMessage, AIMessageChunk)) 
+                        and msg.content 
+                        and isinstance(msg.content, str)):
+                    # 跳过纯 tool_calls 消息（其 content 通常为空）
+                    if hasattr(msg, 'tool_calls') and msg.tool_calls and not msg.content.strip():
+                        continue
+                    token = msg.content
+                    final_text += token
+                    text_buffer += token
+                    
+                    # 缓冲区达到阈值时刷新发送
+                    if len(text_buffer) >= CONTENT_CHUNK_SIZE:
+                        for evt in _flush_content_buffer():
+                            yield evt
+
+        # 发送缓冲区残留在尾部
+        for evt in _flush_content_buffer():
+            yield evt
 
         elapsed = time.time() - stream_start
         

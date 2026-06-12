@@ -137,7 +137,7 @@
             </div>
             
             <!-- 最终答案 -->
-            <ContentRenderer :content="getPlainText(message.content)" />
+            <ContentRenderer :content="getPlainText(message.content)" :is-streaming="message.isStreaming" />
             
             <!-- 流式输出中指示 -->
             <span v-if="message.isStreaming" class="streaming-cursor">▊</span>

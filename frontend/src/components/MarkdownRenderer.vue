@@ -11,6 +11,11 @@ export default {
     content: {
       type: String,
       required: true
+    },
+    // 是否正在流式输出中（用于提前渲染不完整表格）
+    isStreaming: {
+      type: Boolean,
+      default: false
     }
   },
   computed: {
@@ -26,18 +31,63 @@ export default {
       // 使用 --- 而非 <hr>，避免开启 HTML 块吞没后续标题
       content = content.replace(/^[\s]*(\.{3,}|-{3,}|~{3,}|\*{3,})[\s]*$/gm, '\n\n---\n\n')
       
+      // 流式输出中：检测仅有表头行的不完整表格，补全分隔符使其提前渲染
+      if (this.isStreaming) {
+        content = content.replace(
+          /(?:^|\n)(\|[^\n|]+\|)[\r\n]*$/,
+          (match, headerRow) => {
+            const colCount = (headerRow.match(/\|/g) || []).length - 1
+            const sep = '|' + Array(Math.max(1, colCount)).fill('---').join('|') + '|'
+            return match.trimEnd() + '\n' + sep + '\n'
+          }
+        )
+      }
+
+      // 用 HTML 注释占位符标记表格位置，先替换为 HTML 表格
+      // markdown-it (html:true) 会原样保留 HTML 注释，不会被转义
+      const tableParts = []
       const tableRegex = /(\|.*\|[\r\n]+\|[-:|]+\|[\r\n]+(\|.*\|[\r\n]*)*)/g
       content = content.replace(tableRegex, (match) => {
-        return this.parseTable(match)
+        const idx = tableParts.length
+        tableParts.push(this.parseTable(match))
+        return `<!--TABLE_PLACEHOLDER_${idx}-->`
       })
-      
+
+      // 清理表格占位符紧邻的多余分隔线 --- / ***
+      // LLM 常在章节和表格间用 --- 分隔，渲染后会变成多余的 <hr>
+      content = content.replace(
+        /\n{0,2}([\s]*(?:-{3,}|\.{3,}|~{3,}|\*{3,})[\s]*)\n*(<!--TABLE_PLACEHOLDER_\d+-->)/g,
+        '$2'
+      )
+      // 也清理表格后的多余分隔线
+      content = content.replace(
+        /(<!--TABLE_PLACEHOLDER_\d+-->)\n*([\s]*(?:-{3,}|\.{3,}|~{3,}|\*{3,})[\s]*)\n{0,2}/g,
+        '$1\n'
+      )
+
       const md = new MarkdownIt({
         html: true,
         breaks: true,
         linkify: true
       })
       
-      return md.render(content)
+      // 对非表格部分做 markdown 渲染，然后还原表格 HTML
+      let result = md.render(content)
+      
+      // 最终清理：移除表格 HTML 紧邻的 <hr> 标签（markdown-it 可能已将残余 --- 渲染为 hr）
+      for (let i = 0; i < tableParts.length; i++) {
+        result = result.replace(`<!--TABLE_PLACEHOLDER_${i}-->`, tableParts[i])
+      }
+      result = result.replace(
+        /<hr[^>]*>\s*(<table class="data-table">)/g,
+        '$1'
+      )
+      result = result.replace(
+        /(<\/table>\s*)\s*<hr[^>]*>/g,
+        '$1'
+      )
+      
+      return result
     }
   },
   methods: {
