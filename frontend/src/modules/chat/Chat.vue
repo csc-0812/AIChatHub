@@ -425,8 +425,12 @@ export default {
   },
   watch: {
     messages: {
-      handler() {
-        this.scrollToBottom()
+      handler(newVal, oldVal) {
+        // 仅在流式输出中或消息数量变化时才滚动到底部
+        // 防止展开/收起推理过程等UI状态变化导致不必要的滚动
+        if (this.isLoading || !oldVal || newVal.length !== oldVal.length) {
+          this.scrollToBottom()
+        }
       },
       deep: true
     },

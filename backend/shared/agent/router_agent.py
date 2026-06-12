@@ -150,6 +150,11 @@ class RouterAgent:
         prev_text = ""              # 用于增量文本对比
         final_text = ""             # 最终收集的文本
 
+        # 记录初始消息数量，用于过滤本轮之前的旧消息
+        # values 模式返回完整状态快照，内含所有历史消息
+        # 仅从本轮新增的消息中提取内容，避免拿到上一轮的 AIMessage
+        initial_msg_count = len(state["messages"])
+
         # values 模式: 每个 chunk 是完整状态 {"messages": [...]}
         # custom 模式: Middleware 通过 get_stream_writer() 推送的事件
         async for sm, chunk in agent.astream(
@@ -172,7 +177,8 @@ class RouterAgent:
 
             elif sm == "values":
                 # values 事件：完整状态快照 {"messages": [msg_list], ...}
-                text = self._extract_content_from_values(chunk)
+                # 只从本轮新增的消息中提取内容
+                text = self._extract_content_from_values(chunk, skip_count=initial_msg_count)
                 if text:
                     # 只发送增量部分，token 级别流式
                     if len(text) > len(prev_text):
@@ -198,14 +204,18 @@ class RouterAgent:
             "reasoning": "\n".join(reasoning_buffer)
         }
     
-    def _extract_content_from_values(self, chunk: Any) -> str:
+    def _extract_content_from_values(self, chunk: Any, skip_count: int = 0) -> str:
         """
         从 stream_mode="values" 的 chunk 中提取 AIMessage 文本内容
         
         values chunk 格式为完整状态字典:
           {"messages": [HumanMessage, AIMessage("工具结果..."), AIMessage("最终答案")], ...}
         
-        遍历 messages 列表，找到最后一条有文本内容的 AIMessage
+        遍历 messages 列表，找到最后一条有文本内容的 AIMessage。
+        
+        Args:
+            chunk: values 模式的 chunk 数据
+            skip_count: 跳过前 N 条消息（过滤本轮之前的历史消息）
         """
         if chunk is None:
             return ""
@@ -214,8 +224,9 @@ class RouterAgent:
         if isinstance(chunk, dict):
             msgs = chunk.get("messages", [])
             if isinstance(msgs, list):
-                # 从后往前找最后一条有 content 的 AIMessage
-                for msg in reversed(msgs):
+                # 只扫描本轮新增的消息，避免拿到上一轮 AIMessage 的内容
+                new_msgs = msgs[skip_count:] if skip_count > 0 else msgs
+                for msg in reversed(new_msgs):
                     if isinstance(msg, AIMessage) and msg.content:
                         return msg.content
             # 也兼容 {node_name: AIMessage} 格式
@@ -231,7 +242,7 @@ class RouterAgent:
         if isinstance(chunk, tuple) and len(chunk) >= 1:
             inner = chunk[0] if len(chunk) == 1 else chunk[1]
             if isinstance(inner, dict):
-                return self._extract_content_from_values(inner)
+                return self._extract_content_from_values(inner, skip_count)
             if isinstance(inner, AIMessage) and inner.content:
                 return inner.content
                 

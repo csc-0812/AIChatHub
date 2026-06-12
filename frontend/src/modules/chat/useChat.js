@@ -91,7 +91,7 @@ export function useChat() {
         type: msg.role,
         content: normalizeContent(msg.content),
         reasoning_content: msg.reasoning_content || '',
-        showThinking: !!(msg.reasoning_content),
+        showThinking: false,  // 历史消息默认收起推理过程
         isStreaming: false,
         time: new Date(msg.timestamp).toLocaleTimeString()
       }))
@@ -347,23 +347,24 @@ export function useChat() {
       await loadSessions(onLogout)
 
     } catch (error) {
+      const targetMsg = _getCurrentAssistantMsg()
       if (error.name === 'AbortError') {
         // 用户手动停止
-        if (currentAssistantMessage.value) {
-          const text = getPlainText(currentAssistantMessage.value.content)
+        if (targetMsg) {
+          const text = getPlainText(targetMsg.content)
           if (!text) {
-            currentAssistantMessage.value.content = [{ kind: 'texts', texts: ['（已停止生成）'] }]
+            targetMsg.content = [{ kind: 'texts', texts: ['（已停止生成）'] }]
           } else {
-            const currentTexts = currentAssistantMessage.value.content[0].texts
-            currentAssistantMessage.value.content[0].texts = [...currentTexts, '\n\n*（已停止生成）*']
+            const currentTexts = targetMsg.content[0].texts
+            targetMsg.content[0].texts = [...currentTexts, '\n\n*（已停止生成）*']
           }
-          currentAssistantMessage.value.isStreaming = false
+          targetMsg.isStreaming = false
         }
       } else {
         console.error('聊天错误:', error)
-        if (currentAssistantMessage.value) {
-          currentAssistantMessage.value.content = [{ kind: 'texts', texts: ['抱歉，发生了错误，请稍后重试。'] }]
-          currentAssistantMessage.value.isStreaming = false
+        if (targetMsg) {
+          targetMsg.content = [{ kind: 'texts', texts: ['抱歉，发生了错误，请稍后重试。'] }]
+          targetMsg.isStreaming = false
         }
       }
     } finally {
@@ -411,12 +412,23 @@ export function useChat() {
   }
 
   /**
+   * 获取当前流式输出中的助手消息（通过ID在 messages 数组中查找）
+   * 确保始终操作 messages 数组中的响应式对象，避免引用不同步问题
+   */
+  function _getCurrentAssistantMsg() {
+    if (!currentAssistantMessageId.value) return null
+    return messages.value.find(m => m.id === currentAssistantMessageId.value) || null
+  }
+
+  /**
    * 处理SSE事件
    * 参考IFA: 事件类型包括
    *   update_user_message → reasoning_content_chunk → content_chunk
    *   → update_assistant_message → done
    */
   function handleSSEEvent(event, data) {
+    // 除 session_created / update_user_message 外，统一通过 ID 查找目标消息
+    let targetMsg = null
     switch (event) {
       case 'session_created':
         currentSessionId.value = data.session_id
@@ -435,42 +447,50 @@ export function useChat() {
 
       case 'reasoning_content_chunk':
         // 参考IFA: 推理内容逐块追加到助手消息
-        if (!currentAssistantMessage.value) return
-        if (!currentAssistantMessage.value.reasoning_content) {
-          currentAssistantMessage.value.reasoning_content = ''
+        targetMsg = _getCurrentAssistantMsg()
+        if (!targetMsg) return
+        if (!targetMsg.reasoning_content) {
+          targetMsg.reasoning_content = ''
         }
-        currentAssistantMessage.value.reasoning_content += data
+        targetMsg.reasoning_content += data
         break
 
       case 'content_chunk':
         // 参考IFA: 同类型 chunk 合并（texts 合并 texts）
-        if (!currentAssistantMessage.value) return
-        _mergeContentChunk(currentAssistantMessage.value.content, data)
+        targetMsg = _getCurrentAssistantMsg()
+        if (!targetMsg) return
+        _mergeContentChunk(targetMsg.content, data)
         break
 
       case 'update_assistant_message':
         // 参考IFA: 用真实ID替换临时ID，标记流式结束
-        if (!currentAssistantMessage.value) return
-        currentAssistantMessage.value.id = data.id
-        currentAssistantMessage.value.content = normalizeContent(data.content)
+        targetMsg = _getCurrentAssistantMsg()
+        if (!targetMsg) return
+        targetMsg.id = data.id
+        targetMsg.content = normalizeContent(data.content)
         if (data.reasoning_content) {
-          currentAssistantMessage.value.reasoning_content = data.reasoning_content
+          targetMsg.reasoning_content = data.reasoning_content
         }
-        currentAssistantMessage.value.isStreaming = false
+        targetMsg.isStreaming = false
+        targetMsg.showThinking = false  // 回复完毕，收起推理过程
         break
 
       case 'done':
-        // 参考IFA: 流式输出完成
-        if (currentAssistantMessage.value) {
-          currentAssistantMessage.value.isStreaming = false
+        // 参考IFA: 流式输出完成，收起推理过程
+        targetMsg = _getCurrentAssistantMsg()
+        if (targetMsg) {
+          targetMsg.isStreaming = false
+          targetMsg.showThinking = false
         }
         break
 
       case 'error':
         console.error('SSE错误:', data)
-        if (currentAssistantMessage.value) {
-          currentAssistantMessage.value.content = [{ kind: 'texts', texts: ['抱歉，发生了错误：' + data.message] }]
-          currentAssistantMessage.value.isStreaming = false
+        targetMsg = _getCurrentAssistantMsg()
+        if (targetMsg) {
+          targetMsg.content = [{ kind: 'texts', texts: ['抱歉，发生了错误：' + data.message] }]
+          targetMsg.isStreaming = false
+          targetMsg.showThinking = false
         }
         break
 
@@ -480,29 +500,33 @@ export function useChat() {
         break
 
       case 'thinking':
-        if (currentAssistantMessage.value) {
-          currentAssistantMessage.value.reasoning_content = data.content
+        targetMsg = _getCurrentAssistantMsg()
+        if (targetMsg) {
+          targetMsg.reasoning_content = data.content
         }
         break
 
       case 'thinking_chunk':
-        if (currentAssistantMessage.value) {
-          if (!currentAssistantMessage.value.reasoning_content) {
-            currentAssistantMessage.value.reasoning_content = ''
+        targetMsg = _getCurrentAssistantMsg()
+        if (targetMsg) {
+          if (!targetMsg.reasoning_content) {
+            targetMsg.reasoning_content = ''
           }
-          currentAssistantMessage.value.reasoning_content += data.chunk
+          targetMsg.reasoning_content += data.chunk
         }
         break
 
       case 'answer':
-        if (currentAssistantMessage.value) {
-          currentAssistantMessage.value.content = [{ kind: 'texts', texts: [data.content] }]
+        targetMsg = _getCurrentAssistantMsg()
+        if (targetMsg) {
+          targetMsg.content = [{ kind: 'texts', texts: [data.content] }]
         }
         break
 
       case 'answer_chunk':
-        if (currentAssistantMessage.value) {
-          const texts = currentAssistantMessage.value.content[0]?.texts || ['']
+        targetMsg = _getCurrentAssistantMsg()
+        if (targetMsg) {
+          const texts = targetMsg.content[0]?.texts || ['']
           texts[texts.length - 1] += data.chunk
         }
         break
