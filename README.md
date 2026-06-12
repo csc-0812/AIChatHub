@@ -28,8 +28,12 @@ AIChatHub/
 │   ├── shared/
 │   │   ├── agent/              # LangGraph 智能体核心
 │   │   │   ├── router_agent.py # RouterAgent（三工具路由）
+│   │   │   ├── base_agent.py   # 基础智能体基类
 │   │   │   ├── tools.py        # 报表/推演/根因三大工具
-│   │   │   └── tools_data.py   # 模拟制造数据
+│   │   │   ├── tools_data.py   # 模拟制造数据
+│   │   │   ├── prompts.py      # 系统提示词
+│   │   │   ├── models.py       # Agent 数据模型
+│   │   │   └── middleware.py   # Agent 中间件（日志/摘要）
 │   │   └── utils/              # 工具类（Redis/JWT/LLM/配置）
 │   ├── scripts/                # 维护脚本
 │   ├── main.py                 # FastAPI 入口
@@ -43,8 +47,15 @@ AIChatHub/
 │   │   ├── components/         # 通用组件
 │   │   │   ├── ChartRenderer.vue      # Chart.js 图表渲染
 │   │   │   ├── MarkdownRenderer.vue   # Markdown 渲染
-│   │   │   └── ContentRenderer.vue    # 混合内容渲染
-│   │   ├── utils/              # 工具（SSE/配置/格式化）
+│   │   │   ├── ContentRenderer.vue    # 混合内容渲染
+│   │   │   └── ThemeToggle.vue        # 主题切换
+│   │   ├── themes/             # 主题配置
+│   │   │   └── theme.js               # CSS 变量主题定义
+│   │   ├── utils/              # 工具（SSE/配置/格式化/PDF）
+│   │   │   ├── sse.js                 # SSE 流处理
+│   │   │   ├── config.js             # 前端配置加载
+│   │   │   ├── format.js             # 格式化工具
+│   │   │   └── pdfExport.js          # PDF 导出
 │   │   ├── App.vue             # 根组件
 │   │   └── main.js             # 入口
 │   ├── public/config.json      # 前端配置
@@ -72,6 +83,8 @@ AIChatHub/
 - [x] **Markdown 渲染** — AI 回复支持 Markdown 格式，自动前端的格式化和展示
 - [x] **上下文记忆** — 可配置上下文窗口长度
 - [x] **文件上传** — 支持图片和文档上传
+- [x] **对话导出** — 支持导出为 PDF（html2canvas + jsPDF）
+- [x] **主题切换** — 支持亮色/暗色主题，CSS 变量驱动
 - [x] **管理员功能** — 用户列表 / 角色编辑 / 禁用启用 / 强制下线
 - [x] **模型配置** — 动态配置多个 LLM 模型，运行时切换无需重启
 
@@ -97,7 +110,7 @@ AIChatHub/
 | Vite | 构建工具 |
 | Chart.js + vue-chartjs | 图表渲染（柱状图/饼图/折线图） |
 | markdown-it | Markdown 渲染 |
-| 原生 CSS | 样式（暗色主题） |
+| 原生 CSS | 样式（亮色/暗色双主题，CSS 变量驱动） |
 
 ## 快速开始
 
@@ -137,7 +150,7 @@ docker compose -f docker/docker-compose.yml up -d --build  # 重新构建
 
 #### 环境要求
 
-- Python 3.12+
+- Python 3.13+
 - Node.js 18+
 - Redis 服务器
 
@@ -320,13 +333,14 @@ docker compose -f docker/docker-compose.yml down
 - [x] LangGraph 智能体与工具调用
 - [x] 可视化图表渲染
 - [x] 文件上传
+- [x] 对话导出 (PDF)
+- [x] 主题切换（亮色/暗色）
 - [x] 管理员功能
 - [x] 模型动态配置
 - [ ] 多智能体协作模式
 - [ ] 知识库/RAG 检索增强
-- [ ] 对话导出 (PDF/Markdown)
+- [ ] 对话导出 (Markdown)
 - [ ] 多语言支持
-- [ ] 主题定制（亮色/暗色切换）
 
 ## 许可证
 
