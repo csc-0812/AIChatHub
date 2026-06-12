@@ -15,15 +15,30 @@ export default {
   name: 'ContentRenderer',
   components: { MarkdownRenderer, ChartRenderer },
   props: {
+    // 支持字符串或结构化数组 [{kind: "texts", texts: [...]}, ...]
     content: {
-      type: String,
+      type: [String, Array],
       required: true
     }
   },
   computed: {
+    /**
+     * 获取纯文本内容用于渲染
+     * 支持字符串和结构化数组两种格式
+     */
+    plainContent() {
+      if (!this.content) return ''
+      if (typeof this.content === 'string') return this.content
+      if (!Array.isArray(this.content)) return ''
+      return this.content
+        .filter(block => block.kind === 'texts' && block.texts)
+        .flatMap(block => block.texts)
+        .join('\n')
+    },
+    
     contentSegments() {
       const segments = []
-      let content = this.content
+      let content = this.plainContent
 
       if (!content) return segments
 

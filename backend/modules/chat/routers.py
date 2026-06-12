@@ -77,19 +77,35 @@ async def get_session(
     if session.user_id and session.user_id != current_user.username:
         raise HTTPException(status_code=403, detail="无权访问此会话")
     
+    # 序列化消息，兼容新版结构化content
+    serialized_messages = []
+    for msg in session.messages:
+        msg_dict = {
+            "id": msg.id,
+            "role": msg.role.value,
+            "timestamp": msg.timestamp.isoformat()
+        }
+        # 结构化内容序列化
+        if isinstance(msg.content, list):
+            msg_dict["content"] = [
+                block.model_dump() if hasattr(block, 'model_dump') else block
+                for block in msg.content
+            ]
+        else:
+            msg_dict["content"] = [{"kind": "texts", "texts": [msg.content]}]
+        
+        # reasoning_content
+        if msg.reasoning_content:
+            msg_dict["reasoning_content"] = msg.reasoning_content
+        
+        serialized_messages.append(msg_dict)
+    
     return {
         "session_id": session.session_id,
         "title": session.title,
         "max_context_length": session.max_context_length,
         "model_id": session.model_id,
-        "messages": [
-            {
-                "role": msg.role.value,
-                "content": msg.content,
-                "timestamp": msg.timestamp.isoformat()
-            }
-            for msg in session.messages
-        ],
+        "messages": serialized_messages,
         "created_at": session.created_at.isoformat(),
         "updated_at": session.updated_at.isoformat()
     }
@@ -176,32 +192,30 @@ async def chat_stream(
     """
     流式聊天接口
     
-    使用SSE（Server-Sent Events）方式返回大模型的思考过程和回答
+    参考IFA: 使用SSE（Server-Sent Events）方式返回大模型的思考过程和回答
     
     **参数**:
     - **session_id**: 会话ID（必填）
     - **message**: 用户消息（必填）
     - **stream**: 是否使用流式输出（默认true）
     
-    **事件类型**:
+    **SSE 事件类型**:
     - session_created: 新会话创建（如果session_id不存在）
-    - start: 开始生成
-    - thinking: 思考过程完成
-    - thinking_chunk: 思考过程片段（实时）
-    - answer: 最终答案完成
-    - answer_chunk: 答案片段（实时）
+    - update_user_message: 用户消息已保存，含消息ID
+    - reasoning_content_chunk: Agent推理过程片段（工具调用日志等）
+    - content_chunk: 答案内容片段 {kind: "texts", texts: [...]}
+    - update_assistant_message: AI消息已保存，含真实消息ID
     - done: 全部完成
     - error: 错误信息
     
     **前端使用示例**:
     ```javascript
-    const eventSource = new EventSource('/api/v1/chat/stream');
-    eventSource.addEventListener('thinking', (e) => {
-        console.log('思考过程:', JSON.parse(e.data).content);
-    });
-    eventSource.addEventListener('answer', (e) => {
-        console.log('最终答案:', JSON.parse(e.data).content);
-    });
+    const response = await fetch('/api/v1/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ... },
+        body: JSON.stringify({ session_id, message, stream: true })
+    })
+    // 通过 ReadableStream 读取 SSE 事件
     ```
     """
     # 生成 trace_id 用于追踪整个请求链路

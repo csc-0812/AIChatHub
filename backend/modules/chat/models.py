@@ -1,8 +1,9 @@
 """
 聊天模块数据模型
 """
+import uuid
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from enum import Enum
 from datetime import datetime
 
@@ -14,11 +15,36 @@ class MessageRole(str, Enum):
     SYSTEM = "system"
 
 
+class ContentBlock(BaseModel):
+    """结构化内容块
+    参考IFA: content = [{kind: "texts"/"files"/"images", ...}]
+    """
+    kind: str  # "texts", "files", "images"
+    texts: Optional[List[str]] = None
+    files: Optional[List[Dict[str, Any]]] = None
+    images: Optional[List[Dict[str, Any]]] = None
+
+
 class ChatMessage(BaseModel):
-    """聊天消息"""
+    """聊天消息
+    参考IFA: 消息包含 id、role、content(结构化数组)、reasoning_content
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: MessageRole
-    content: str
+    content: Union[str, List[ContentBlock]] = ""  # 支持纯文本(向后兼容)或结构化内容
+    reasoning_content: Optional[str] = None  # Agent推理过程
     timestamp: datetime = Field(default_factory=datetime.now)
+    
+    def get_plain_content(self) -> str:
+        """获取纯文本内容（用于LLM上下文构建）"""
+        if isinstance(self.content, str):
+            return self.content
+        # 结构化内容：提取所有 texts
+        parts = []
+        for block in self.content:
+            if block.kind == "texts" and block.texts:
+                parts.append("\n".join(block.texts))
+        return "\n".join(parts)
 
 
 class ChatSession(BaseModel):
@@ -32,9 +58,18 @@ class ChatSession(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     
-    def add_message(self, role: MessageRole, content: str):
+    def add_message(
+        self, 
+        role: MessageRole, 
+        content: Union[str, List[ContentBlock]], 
+        reasoning_content: Optional[str] = None
+    ):
         """添加消息并维护上下文长度"""
-        message = ChatMessage(role=role, content=content)
+        message = ChatMessage(
+            role=role, 
+            content=content,
+            reasoning_content=reasoning_content
+        )
         self.messages.append(message)
         
         # 保留最近的 max_context_length 条消息（不包括系统消息）
@@ -51,7 +86,10 @@ class ChatSession(BaseModel):
     def get_context_messages(self) -> List[Dict[str, str]]:
         """获取用于LLM的上下文消息"""
         return [
-            {"role": msg.role.value, "content": msg.content}
+            {
+                "role": msg.role.value, 
+                "content": msg.get_plain_content()
+            }
             for msg in self.messages
         ]
 

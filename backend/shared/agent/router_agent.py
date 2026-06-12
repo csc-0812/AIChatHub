@@ -111,11 +111,23 @@ class RouterAgent:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         流式运行智能体
+
+        使用双流模式:
+          - "values":  获取状态快照（含完整的 messages 列表）
+          - "custom":  获取 Middleware 推送的自定义事件（工具调用日志等）
+
+        LangGraph stream_mode="values" 的 chunk 格式为:
+          {"messages": [HumanMessage, AIMessage, ToolMessage, ...], ...}
+          即完整的状态字典，"messages" 的值是消息列表
         
+        事件类型:
+          - reasoning_content_chunk: Agent推理/工具调用日志（string增量）
+          - content_chunk: 答案内容块 {kind: "texts", texts: [...]}
+
         Args:
             messages: 消息列表
             **kwargs: 其他参数
-            
+
         Yields:
             流式响应事件
         """
@@ -123,7 +135,7 @@ class RouterAgent:
         log_with_trace(logger, logging.INFO, f"Agent 流式执行开始 (消息数={len(messages)})")
 
         agent = self.build()
-        
+
         state: AgentState = {
             "messages": [
                 HumanMessage(content=msg["content"]) 
@@ -132,17 +144,98 @@ class RouterAgent:
                 for msg in messages
             ]
         }
-        
+
         event_count = 0
-        async for event in agent.astream(state, **kwargs):
-            formatted = self._format_stream_event(event)
+        reasoning_buffer = []       # 收集推理内容
+        prev_text = ""              # 用于增量文本对比
+        final_text = ""             # 最终收集的文本
+
+        # values 模式: 每个 chunk 是完整状态 {"messages": [...]}
+        # custom 模式: Middleware 通过 get_stream_writer() 推送的事件
+        async for sm, chunk in agent.astream(
+            state, 
+            stream_mode=["values", "custom"],
+            **kwargs
+        ):
             event_count += 1
-            if formatted:
-                yield formatted
+
+            if sm == "custom":
+                # custom 事件：来自 Middleware 的推理日志
+                if isinstance(chunk, dict):
+                    reasoning = chunk.get("reasoning", "")
+                    if reasoning:
+                        yield {
+                            "event_type": "reasoning_content_chunk",
+                            "content": reasoning
+                        }
+                        reasoning_buffer.append(reasoning)
+
+            elif sm == "values":
+                # values 事件：完整状态快照 {"messages": [msg_list], ...}
+                text = self._extract_content_from_values(chunk)
+                if text:
+                    # 只发送增量部分，token 级别流式
+                    if len(text) > len(prev_text):
+                        incremental = text[len(prev_text):]
+                        if incremental:
+                            yield {
+                                "event_type": "content_chunk",
+                                "content": [{"kind": "texts", "texts": [incremental]}]
+                            }
+                    prev_text = text
+                    final_text = text
 
         elapsed = time.time() - stream_start
+        
         log_with_trace(logger, logging.INFO, 
-            f"Agent 流式执行完成 (耗时={elapsed:.2f}s, 总事件数={event_count})")
+            f"Agent 流式执行完成 (耗时={elapsed:.2f}s, 总事件数={event_count}, "
+            f"响应长度={len(final_text)}, 推理长度={len(reasoning_buffer)})")
+
+        # 返回最终汇总
+        yield {
+            "event_type": "agent_summary",
+            "content": final_text,
+            "reasoning": "\n".join(reasoning_buffer)
+        }
+    
+    def _extract_content_from_values(self, chunk: Any) -> str:
+        """
+        从 stream_mode="values" 的 chunk 中提取 AIMessage 文本内容
+        
+        values chunk 格式为完整状态字典:
+          {"messages": [HumanMessage, AIMessage("工具结果..."), AIMessage("最终答案")], ...}
+        
+        遍历 messages 列表，找到最后一条有文本内容的 AIMessage
+        """
+        if chunk is None:
+            return ""
+            
+        # 格式1: 直接是 dict {"messages": [...]} — values 模式的标准格式
+        if isinstance(chunk, dict):
+            msgs = chunk.get("messages", [])
+            if isinstance(msgs, list):
+                # 从后往前找最后一条有 content 的 AIMessage
+                for msg in reversed(msgs):
+                    if isinstance(msg, AIMessage) and msg.content:
+                        return msg.content
+            # 也兼容 {node_name: AIMessage} 格式
+            for key, value in chunk.items():
+                if isinstance(value, AIMessage) and value.content:
+                    return value.content
+        
+        # 格式2: AIMessage 直接传来
+        if isinstance(chunk, AIMessage) and chunk.content:
+            return chunk.content
+        
+        # 格式3: 元组 (node_name, value)
+        if isinstance(chunk, tuple) and len(chunk) >= 1:
+            inner = chunk[0] if len(chunk) == 1 else chunk[1]
+            if isinstance(inner, dict):
+                return self._extract_content_from_values(inner)
+            if isinstance(inner, AIMessage) and inner.content:
+                return inner.content
+                
+        return ""
     
     def _format_response(self, result: AgentState) -> Dict[str, Any]:
         """格式化智能体响应"""
@@ -158,10 +251,12 @@ class RouterAgent:
         return {"content": "", "role": "assistant"}
     
     def _format_stream_event(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """格式化流式事件"""
+        """
+        格式化流式事件（保留向后兼容：默认 stream_mode 的 {node: value} 格式）
+        """
         if not isinstance(event, dict):
             return None
-        
+
         for key, value in event.items():
             if isinstance(value, AIMessage):
                 return {
@@ -169,7 +264,8 @@ class RouterAgent:
                     "role": "assistant",
                     "tool_calls": value.tool_calls or []
                 }
-            elif isinstance(value, dict) and "messages" in value:
+            # value 是 dict 包含 messages
+            if isinstance(value, dict) and "messages" in value:
                 messages = value["messages"]
                 if messages and isinstance(messages[-1], AIMessage):
                     last_msg = messages[-1]
@@ -178,7 +274,7 @@ class RouterAgent:
                         "role": "assistant",
                         "tool_calls": last_msg.tool_calls or []
                     }
-        
+
         return None
 
 

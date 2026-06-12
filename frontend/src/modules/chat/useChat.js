@@ -11,6 +11,7 @@ export function useChat() {
   const isLoading = ref(false)
   const showSidebar = ref(true)
   const currentAssistantMessage = ref(null)
+  const currentAssistantMessageId = ref(null)  // 参考IFA: 当前流式输出的临时消息ID
   const editingSessionId = ref(null)
   const editingTitle = ref('')
   const selectedFiles = ref([])
@@ -86,15 +87,16 @@ export function useChat() {
     try {
       const data = await chatApi.getSession(sessionId)
       messages.value = data.messages.map(msg => ({
+        id: msg.id,
         type: msg.role,
-        content: msg.content,
-        time: new Date(msg.timestamp).toLocaleTimeString(),
-        thinking: '',
-        showThinking: false
+        content: normalizeContent(msg.content),
+        reasoning_content: msg.reasoning_content || '',
+        showThinking: !!(msg.reasoning_content),
+        isStreaming: false,
+        time: new Date(msg.timestamp).toLocaleTimeString()
       }))
       // 恢复该会话之前使用的模型
       if (data.model_id) {
-        // 确保模型列表中有该模型
         const modelExists = models.value.some(m => m.id === data.model_id)
         if (modelExists) {
           selectedModelId.value = data.model_id
@@ -112,6 +114,31 @@ export function useChat() {
     if (window.innerWidth <= 768) {
       showSidebar.value = false
     }
+  }
+
+  /**
+   * 规范化 content 格式
+   * 参考IFA: content 始终为数组 [{kind: "texts"/"files"/"images", ...}]
+   * 同时兼容旧的字符串格式
+   */
+  function normalizeContent(content) {
+    if (!content) return [{ kind: 'texts', texts: [''] }]
+    if (Array.isArray(content)) return content
+    // 旧格式：字符串 → 转换为结构化格式
+    return [{ kind: 'texts', texts: [content] }]
+  }
+
+  /**
+   * 从结构化 content 中提取纯文本
+   */
+  function getPlainText(content) {
+    if (!content) return ''
+    if (typeof content === 'string') return content
+    if (!Array.isArray(content)) return ''
+    return content
+      .filter(block => block.kind === 'texts' && block.texts)
+      .flatMap(block => block.texts)
+      .join('\n')
   }
 
   // 开始重命名
@@ -241,11 +268,16 @@ export function useChat() {
       messageContent = messageContent ? `${messageContent}\n${fileInfo}` : fileInfo
     }
 
-    // 添加用户消息
+    // 参考IFA: 使用临时ID，等待后端 update_user_message 回传真实ID
+    const tempUserId = `temp-${Date.now()}`
     messages.value.push({
+      id: tempUserId,
       type: 'user',
-      content: messageContent,
+      content: [{ kind: 'texts', texts: [messageContent] }],
       files: filesToSend,
+      reasoning_content: '',
+      isStreaming: false,
+      showThinking: false,
       time: new Date().toLocaleTimeString()
     })
 
@@ -254,12 +286,16 @@ export function useChat() {
     // 创建 AbortController，用于支持手动停止
     abortController.value = new AbortController()
 
-    // 创建AI消息占位
+    // 参考IFA: 创建AI消息占位，使用临时ID
+    const tempAiId = `temp-${Date.now() + 1}`
+    currentAssistantMessageId.value = tempAiId
     currentAssistantMessage.value = {
+      id: tempAiId,
       type: 'assistant',
-      content: '',
-      thinking: '',
+      content: [{ kind: 'texts', texts: [''] }],
+      reasoning_content: '',
       showThinking: true,
+      isStreaming: true,
       time: new Date().toLocaleTimeString()
     }
     messages.value.push(currentAssistantMessage.value)
@@ -281,7 +317,7 @@ export function useChat() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      // 读取SSE流（带缓冲区，防止chunk边界截断事件）
+      // 参考IFA: fetch + ReadableStream SSE 解析
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -291,51 +327,20 @@ export function useChat() {
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        // 最后一行可能不完整，保留到下次处理
-        buffer = lines.pop() || ''
-
-        let currentEvent = null
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) {
-            // 空行表示一个 SSE 事件结束，触发处理
-            if (currentEvent && currentEvent.data) {
-              try {
-                const data = JSON.parse(currentEvent.data)
-                handleSSEEvent(currentEvent.event, data)
-              } catch (e) {
-                console.error('SSE JSON 解析失败:', e, currentEvent.data)
-              }
-              currentEvent = null
-            }
-            continue
-          }
-
-          if (trimmed.startsWith('event: ')) {
-            currentEvent = { event: trimmed.slice(7), data: '' }
-          } else if (trimmed.startsWith('data: ')) {
-            if (currentEvent) {
-              currentEvent.data = trimmed.slice(6)
-            }
-          }
+        
+        // 参考IFA: 按 \n\n 分隔事件，最后一个可能不完整暂存buffer
+        while (buffer.includes('\n\n')) {
+          const eventEndIdx = buffer.indexOf('\n\n')
+          const eventString = buffer.slice(0, eventEndIdx)
+          buffer = buffer.slice(eventEndIdx + 2)
+          
+          parseAndHandleSSEEvent(eventString)
         }
       }
 
-      // 处理缓冲区中可能残留的最后一个事件
-      if (buffer.trim() && buffer.includes('data: ')) {
-        try {
-          const parts = buffer.split('\n')
-          for (let i = 0; i < parts.length; i++) {
-            if (parts[i].startsWith('event: ') && parts[i + 1]?.startsWith('data: ')) {
-              const data = JSON.parse(parts[i + 1].slice(6))
-              handleSSEEvent(parts[i].slice(7), data)
-            }
-          }
-        } catch (e) {
-          console.error('SSE 残留数据解析失败:', e)
-        }
+      // 处理缓冲区可能残留的最后一个事件
+      if (buffer.trim()) {
+        parseAndHandleSSEEvent(buffer)
       }
 
       // 更新会话列表
@@ -343,19 +348,28 @@ export function useChat() {
 
     } catch (error) {
       if (error.name === 'AbortError') {
-        // 用户手动停止，标记当前消息为已中止
-        if (currentAssistantMessage.value && !currentAssistantMessage.value.content) {
-          currentAssistantMessage.value.content = '（已停止生成）'
-        } else if (currentAssistantMessage.value) {
-          currentAssistantMessage.value.content += '\n\n*（已停止生成）*'
+        // 用户手动停止
+        if (currentAssistantMessage.value) {
+          const text = getPlainText(currentAssistantMessage.value.content)
+          if (!text) {
+            currentAssistantMessage.value.content = [{ kind: 'texts', texts: ['（已停止生成）'] }]
+          } else {
+            const currentTexts = currentAssistantMessage.value.content[0].texts
+            currentAssistantMessage.value.content[0].texts = [...currentTexts, '\n\n*（已停止生成）*']
+          }
+          currentAssistantMessage.value.isStreaming = false
         }
       } else {
         console.error('聊天错误:', error)
-        currentAssistantMessage.value.content = '抱歉，发生了错误，请稍后重试。'
+        if (currentAssistantMessage.value) {
+          currentAssistantMessage.value.content = [{ kind: 'texts', texts: ['抱歉，发生了错误，请稍后重试。'] }]
+          currentAssistantMessage.value.isStreaming = false
+        }
       }
     } finally {
       isLoading.value = false
       abortController.value = null
+      currentAssistantMessageId.value = null
       currentAssistantMessage.value = null
     }
   }
@@ -368,49 +382,166 @@ export function useChat() {
     }
   }
 
-  // 处理SSE事件
-  function handleSSEEvent(event, data) {
-    if (!currentAssistantMessage.value) return
+  // 参考IFA: 解析 SSE 事件字符串
+  function parseAndHandleSSEEvent(eventString) {
+    let eventType = ''
+    const dataLines = []
 
+    for (const line of eventString.split('\n')) {
+      const colonIndex = line.indexOf(':')
+      if (colonIndex === -1) continue
+
+      const field = line.slice(0, colonIndex)
+      let value = line.slice(colonIndex + 1)
+      if (value.startsWith(' ')) value = value.slice(1)  // SSE规范：去掉首空格
+
+      if (field === 'event') eventType = value
+      else if (field === 'data') dataLines.push(value)
+    }
+
+    if (eventType && dataLines.length > 0) {
+      try {
+        const dataStr = dataLines.join('\n')
+        const data = JSON.parse(dataStr)
+        handleSSEEvent(eventType, data)
+      } catch (e) {
+        console.error('SSE JSON 解析失败:', e, dataLines.join('\n'))
+      }
+    }
+  }
+
+  /**
+   * 处理SSE事件
+   * 参考IFA: 事件类型包括
+   *   update_user_message → reasoning_content_chunk → content_chunk
+   *   → update_assistant_message → done
+   */
+  function handleSSEEvent(event, data) {
     switch (event) {
       case 'session_created':
         currentSessionId.value = data.session_id
         currentSessionTitle.value = data.title
         break
 
-      case 'start':
-        console.log('开始生成:', data)
+      case 'update_user_message':
+        // 参考IFA: 用后端返回的真实ID替换用户消息的临时ID
+        if (data.id) {
+          const userMsg = messages.value.find(m => m.type === 'user' && m.id.startsWith('temp-'))
+          if (userMsg) {
+            userMsg.id = data.id
+          }
+        }
         break
 
-      case 'thinking':
-        currentAssistantMessage.value.thinking = data.content
+      case 'reasoning_content_chunk':
+        // 参考IFA: 推理内容逐块追加到助手消息
+        if (!currentAssistantMessage.value) return
+        if (!currentAssistantMessage.value.reasoning_content) {
+          currentAssistantMessage.value.reasoning_content = ''
+        }
+        currentAssistantMessage.value.reasoning_content += data
         break
 
-      case 'thinking_chunk':
-        currentAssistantMessage.value.thinking += data.chunk
+      case 'content_chunk':
+        // 参考IFA: 同类型 chunk 合并（texts 合并 texts）
+        if (!currentAssistantMessage.value) return
+        _mergeContentChunk(currentAssistantMessage.value.content, data)
         break
 
-      case 'answer':
-        currentAssistantMessage.value.content = data.content
-        break
-
-      case 'answer_chunk':
-        currentAssistantMessage.value.content += data.chunk
+      case 'update_assistant_message':
+        // 参考IFA: 用真实ID替换临时ID，标记流式结束
+        if (!currentAssistantMessage.value) return
+        currentAssistantMessage.value.id = data.id
+        currentAssistantMessage.value.content = normalizeContent(data.content)
+        if (data.reasoning_content) {
+          currentAssistantMessage.value.reasoning_content = data.reasoning_content
+        }
+        currentAssistantMessage.value.isStreaming = false
         break
 
       case 'done':
-        if (data.thinking) {
-          currentAssistantMessage.value.thinking = data.thinking
-        }
-        if (data.answer) {
-          currentAssistantMessage.value.content = data.answer
+        // 参考IFA: 流式输出完成
+        if (currentAssistantMessage.value) {
+          currentAssistantMessage.value.isStreaming = false
         }
         break
 
       case 'error':
         console.error('SSE错误:', data)
-        currentAssistantMessage.value.content = '抱歉，发生了错误：' + data.message
+        if (currentAssistantMessage.value) {
+          currentAssistantMessage.value.content = [{ kind: 'texts', texts: ['抱歉，发生了错误：' + data.message] }]
+          currentAssistantMessage.value.isStreaming = false
+        }
         break
+
+      // 向后兼容旧版事件类型
+      case 'start':
+        console.log('开始生成:', data)
+        break
+
+      case 'thinking':
+        if (currentAssistantMessage.value) {
+          currentAssistantMessage.value.reasoning_content = data.content
+        }
+        break
+
+      case 'thinking_chunk':
+        if (currentAssistantMessage.value) {
+          if (!currentAssistantMessage.value.reasoning_content) {
+            currentAssistantMessage.value.reasoning_content = ''
+          }
+          currentAssistantMessage.value.reasoning_content += data.chunk
+        }
+        break
+
+      case 'answer':
+        if (currentAssistantMessage.value) {
+          currentAssistantMessage.value.content = [{ kind: 'texts', texts: [data.content] }]
+        }
+        break
+
+      case 'answer_chunk':
+        if (currentAssistantMessage.value) {
+          const texts = currentAssistantMessage.value.content[0]?.texts || ['']
+          texts[texts.length - 1] += data.chunk
+        }
+        break
+    }
+  }
+
+  /**
+   * 参考IFA: 合并结构化 content chunk
+   * 同类型 chunk 合并数组（texts → texts, files → files）
+   * 创建新引用触发 Vue 响应式
+   */
+  function _mergeContentChunk(existingContent, newChunk) {
+    if (!newChunk || !newChunk.kind) return
+
+    // 找到同类型块
+    let existingBlock = existingContent.find(b => b.kind === newChunk.kind)
+    
+    if (existingBlock) {
+      if (newChunk.kind === 'texts' && newChunk.texts) {
+        existingBlock.texts = [...(existingBlock.texts || []), ...newChunk.texts]
+      } else if (newChunk.kind === 'files' && newChunk.files) {
+        existingBlock.files = [...(existingBlock.files || []), ...newChunk.files]
+      } else if (newChunk.kind === 'images' && newChunk.images) {
+        existingBlock.images = [...(existingBlock.images || []), ...newChunk.images]
+      }
+      // 创建新引用触发 Vue 响应式
+      existingBlock = { ...existingBlock }
+      const idx = existingContent.findIndex(b => b.kind === newChunk.kind)
+      if (idx >= 0) {
+        existingContent.splice(idx, 1, existingBlock)
+      }
+    } else {
+      // 新类型，直接添加
+      existingContent.push({
+        kind: newChunk.kind,
+        texts: newChunk.texts ? [...newChunk.texts] : [],
+        files: newChunk.files ? [...newChunk.files] : [],
+        images: newChunk.images ? [...newChunk.images] : []
+      })
     }
   }
 
@@ -490,6 +621,7 @@ export function useChat() {
     isLoading,
     showSidebar,
     currentAssistantMessage,
+    currentAssistantMessageId,
     editingSessionId,
     editingTitle,
     selectedFiles,
@@ -510,6 +642,8 @@ export function useChat() {
     stopMessage,
     toggleSidebar,
     formatDate,
+    getPlainText,
+    normalizeContent,
     // 模型选择
     models,
     selectedModelId,

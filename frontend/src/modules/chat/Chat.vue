@@ -104,7 +104,7 @@
         </div>
         
         <!-- 消息列表 -->
-        <div v-for="(message, index) in messages" :key="index" 
+        <div v-for="(message, index) in messages" :key="message.id || index" 
              class="message" :class="message.type">
           <!-- 用户消息 -->
           <div v-if="message.type === 'user'" class="message-bubble user">
@@ -118,32 +118,35 @@
                 </div>
               </div>
             </div>
-            <div class="message-content">{{ message.content }}</div>
+            <div class="message-content">{{ getPlainText(message.content) }}</div>
             <div class="message-time">{{ message.time }}</div>
           </div>
           
           <!-- AI消息 -->
           <div v-else-if="message.type === 'assistant'" class="message-bubble assistant">
-            <!-- 思考过程 -->
-            <div v-if="message.thinking" class="thinking-section">
+            <!-- 推理过程 (reasoning_content) -->
+            <div v-if="message.reasoning_content" class="thinking-section">
               <div class="thinking-header" @click="message.showThinking = !message.showThinking">
                 <span class="thinking-icon">💭</span>
-                <span>思考过程</span>
+                <span>推理过程</span>
                 <span class="toggle-icon">{{ message.showThinking ? '▼' : '▶' }}</span>
               </div>
               <div v-show="message.showThinking" class="thinking-content">
-                <pre>{{ message.thinking }}</pre>
+                <pre>{{ message.reasoning_content }}</pre>
               </div>
             </div>
             
             <!-- 最终答案 -->
-            <ContentRenderer :content="message.content" />
+            <ContentRenderer :content="getPlainText(message.content)" />
+            
+            <!-- 流式输出中指示 -->
+            <span v-if="message.isStreaming" class="streaming-cursor">▊</span>
             <div class="message-time">{{ message.time }}</div>
           </div>
         </div>
         
         <!-- 加载状态 -->
-        <div v-if="isLoading" class="loading-indicator">
+        <div v-if="isLoading && !currentAssistantMessage" class="loading-indicator">
           <span class="loading-dots">AI 正在生成</span>
         </div>
       </div>
@@ -956,6 +959,19 @@ export default {
 .loading-dots::after {
   content: '';
   animation: dots 1.5s steps(4, end) infinite;
+}
+
+/* 流式输出光标动画 */
+.streaming-cursor {
+  display: inline-block;
+  color: #d97706;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 @keyframes dots {
