@@ -16,6 +16,8 @@ export function useChat() {
   const editingTitle = ref('')
   const selectedFiles = ref([])
   const abortController = ref(null)     // 用于取消正在进行的流式请求
+  const editingMessageId = ref(null)    // 正在编辑的消息ID
+  const editingMessageText = ref('')    // 编辑中的消息文本
   // 模型选择
   const models = ref([])               // 可用模型列表
   const selectedModelId = ref(null)    // 当前选中的模型ID
@@ -245,18 +247,12 @@ export function useChat() {
     selectedFiles.value.splice(index, 1)
   }
 
-  // 发送消息
-  async function sendMessage(onLogout) {
-    if ((!newMessage.value.trim() && selectedFiles.value.length === 0) || 
-        isLoading.value || !currentSessionId.value) return
-
-    const userMessage = newMessage.value.trim()
-    const filesToSend = [...selectedFiles.value]
-    newMessage.value = ''
-    selectedFiles.value = []
-
+  // 核心发送逻辑：添加用户消息到列表并执行SSE流式请求
+  // rawText: 要发送的纯文本内容（不含文件信息）
+  // filesToSend: 附件列表
+  async function _executeSend(rawText, filesToSend, onLogout) {
     // 构建消息内容（包含文件信息）
-    let messageContent = userMessage
+    let messageContent = rawText
     if (filesToSend.length > 0) {
       const fileInfo = filesToSend.map(f => {
         if (f.file_type === 'image') {
@@ -303,7 +299,7 @@ export function useChat() {
     try {
       const response = await chatApi.sendChatMessage(
         currentSessionId.value,
-        userMessage,
+        rawText,
         abortController.value.signal,
         selectedModelId.value
       )
@@ -375,6 +371,19 @@ export function useChat() {
     }
   }
 
+  // 发送消息
+  async function sendMessage(onLogout) {
+    if ((!newMessage.value.trim() && selectedFiles.value.length === 0) || 
+        isLoading.value || !currentSessionId.value) return
+
+    const userMessage = newMessage.value.trim()
+    const filesToSend = [...selectedFiles.value]
+    newMessage.value = ''
+    selectedFiles.value = []
+
+    await _executeSend(userMessage, filesToSend, onLogout)
+  }
+
   // 手动停止正在进行的流式输出
   function stopMessage() {
     if (abortController.value) {
@@ -426,6 +435,86 @@ export function useChat() {
       }
       console.error('删除消息失败:', error)
       alert('删除消息失败')
+    }
+  }
+
+  // 开始编辑消息
+  function startEditMessage(messageId) {
+    if (isLoading.value) return
+    const msg = messages.value.find(m => m.id === messageId)
+    if (!msg || msg.type !== 'user') return
+    editingMessageId.value = messageId
+    editingMessageText.value = getPlainText(msg.content)
+  }
+
+  // 取消编辑
+  function cancelEditMessage() {
+    editingMessageId.value = null
+    editingMessageText.value = ''
+  }
+
+  // 提交编辑：先删除旧消息对，再发送新消息
+  async function submitEditMessage(messageId, onLogout) {
+    if (!editingMessageText.value.trim() || isLoading.value || !currentSessionId.value) return
+    if (editingMessageId.value !== messageId) return
+
+    const newText = editingMessageText.value.trim()
+
+    // 1. 从后端删除旧的消息对
+    try {
+      const result = await chatApi.deleteMessage(currentSessionId.value, messageId)
+
+      // 2. 从本地消息列表中移除旧的消息对
+      if (result.deleted_count > 0) {
+        const idx = messages.value.findIndex(m => m.id === messageId)
+        if (idx !== -1) {
+          const targetMsg = messages.value[idx]
+          const indicesToDelete = new Set([idx])
+
+          if (targetMsg.type === 'user') {
+            if (idx + 1 < messages.value.length && messages.value[idx + 1].type === 'assistant') {
+              indicesToDelete.add(idx + 1)
+            }
+          }
+
+          const sortedIndices = [...indicesToDelete].sort((a, b) => b - a)
+          for (const i of sortedIndices) {
+            messages.value.splice(i, 1)
+          }
+        }
+      }
+
+      // 3. 退出编辑模式
+      cancelEditMessage()
+
+      // 4. 用新文本发送消息
+      await _executeSend(newText, [], onLogout)
+    } catch (error) {
+      if (error.response && await handleUnauthorized(error.response, onLogout)) {
+        return
+      }
+      console.error('编辑消息失败:', error)
+      alert('编辑消息失败')
+    }
+  }
+
+  // 复制消息文本到剪贴板
+  async function copyMessage(messageId) {
+    const msg = messages.value.find(m => m.id === messageId)
+    if (!msg) return
+    const text = getPlainText(msg.content)
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // 降级方案：使用 textarea
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
     }
   }
 
@@ -695,6 +784,8 @@ export function useChat() {
     editingSessionId,
     editingTitle,
     selectedFiles,
+    editingMessageId,
+    editingMessageText,
     // 计算属性
     hasSessions,
     // 方法
@@ -711,6 +802,10 @@ export function useChat() {
     sendMessage,
     stopMessage,
     deleteMessage,
+    startEditMessage,
+    cancelEditMessage,
+    submitEditMessage,
+    copyMessage,
     toggleSidebar,
     formatDate,
     getPlainText,

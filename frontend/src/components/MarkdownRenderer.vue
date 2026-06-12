@@ -22,8 +22,26 @@ export default {
     renderedContent() {
       let content = this.content
       
+      // 防御：处理非字符串内容
+      if (typeof content !== 'string') {
+        content = String(content || '')
+      }
+      if (!content.trim()) return ''
+
       content = content.replace(/\\n/g, '\n')
       content = content.replace(/\\r/g, '')
+
+      // 修复流式输出中片段拼接导致的 Markdown 标记粘连
+      // 例如 "报表## 标题" → "报表\n\n## 标题"
+      content = content.replace(/([^\s\n])(#{1,6}\s)/g, '$1\n\n$2')
+      // 无序列表粘连："文本- 列表项" → "文本\n- 列表项"
+      content = content.replace(/([^\s\n])([-*+]\s)(?=[A-Za-z0-9\u4e00-\u9fa5])/g, '$1\n$2')
+      // 有序列表粘连："文本1. 列表项" → "文本\n1. 列表项"
+      content = content.replace(/([^\s\n])(\d+\.\s)(?=[A-Za-z0-9\u4e00-\u9fa5])/g, '$1\n$2')
+      // 引用块粘连："文本> 引用" → "文本\n> 引用"
+      content = content.replace(/([^\s\n])(>\s)/g, '$1\n$2')
+      // 代码块粘连："文本```lang" → "文本\n```lang"
+      content = content.replace(/([^\s\n])(```\w*\n)/g, '$1\n$2')
       
       content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       
@@ -65,14 +83,25 @@ export default {
         '$1\n'
       )
 
-      const md = new MarkdownIt({
-        html: true,
-        breaks: true,
-        linkify: true
-      })
-      
-      // 对非表格部分做 markdown 渲染，然后还原表格 HTML
-      let result = md.render(content)
+      let result
+      try {
+        const md = new MarkdownIt({
+          html: true,
+          breaks: true,
+          linkify: true
+        })
+        
+        // 对非表格部分做 markdown 渲染，然后还原表格 HTML
+        result = md.render(content)
+      } catch (e) {
+        console.error('MarkdownIt 渲染失败:', e)
+        // 降级：返回转义后的纯文本
+        return content
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>')
+      }
       
       // 最终清理：移除表格 HTML 紧邻的 <hr> 标签（markdown-it 可能已将残余 --- 渲染为 hr）
       for (let i = 0; i < tableParts.length; i++) {
@@ -86,7 +115,13 @@ export default {
         /(<\/table>\s*)\s*<hr[^>]*>/g,
         '$1'
       )
-      
+
+      // 清理紧邻标题的分隔线，避免双线（如 --- 后紧跟 ## 标题）
+      result = result.replace(
+        /<hr[^>]*>\s*(<h[1-6][^>]*>)/g,
+        '$1'
+      )
+
       return result
     }
   },

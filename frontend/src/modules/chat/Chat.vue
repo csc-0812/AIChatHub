@@ -108,7 +108,34 @@
              class="message" :class="message.type">
           <!-- 用户消息 -->
           <div v-if="message.type === 'user'" class="user-message-wrapper">
-            <div class="message-bubble user">
+            <!-- 编辑模式 -->
+            <div v-if="editingMessageId === message.id" class="message-bubble user editing-bubble">
+              <textarea
+                v-model="editingMessageText"
+                class="edit-textarea"
+                @keydown.enter.exact.prevent="submitEditMessage(message.id, handleLogout)"
+                @keydown.esc="cancelEditMessage"
+                rows="1"
+                ref="editTextareaRef"
+              ></textarea>
+              <div class="edit-actions">
+                <span class="edit-hint">Enter 发送 · Shift+Enter 换行 · Esc 取消</span>
+                <div class="edit-btns">
+                  <button
+                    class="edit-cancel-btn"
+                    @click="cancelEditMessage"
+                    :disabled="isLoading"
+                  >取消</button>
+                  <button
+                    class="edit-submit-btn"
+                    @click="submitEditMessage(message.id, handleLogout)"
+                    :disabled="!editingMessageText.trim() || isLoading"
+                  >发送 ➤</button>
+                </div>
+              </div>
+            </div>
+            <!-- 正常显示模式 -->
+            <div v-else class="message-bubble user">
               <!-- 显示图片附件 -->
               <div v-if="message.files && message.files.length > 0" class="message-attachments">
                 <div v-for="(file, idx) in message.files" :key="idx" class="attachment-item">
@@ -123,7 +150,31 @@
               <div class="message-time">{{ message.time }}</div>
             </div>
             <!-- 鼠标悬停时出现的操作按钮 -->
-            <div class="message-actions">
+            <div v-if="editingMessageId !== message.id" class="message-actions">
+              <button
+                class="msg-action-btn copy-msg-btn"
+                :class="{ copied: copyTipMessageId === message.id }"
+                @click.stop="copyMessage(message.id); showCopyTip(message.id)"
+                :disabled="isLoading"
+                :title="copyTipMessageId === message.id ? '已复制' : '复制'"
+              >
+                <svg v-if="copyTipMessageId !== message.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span v-else class="copied-text">✓</span>
+              </button>
+              <button
+                class="msg-action-btn edit-msg-btn"
+                @click.stop="startEditMessage(message.id)"
+                :disabled="isLoading"
+                title="编辑"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
               <button
                 class="msg-action-btn delete-msg-btn"
                 @click.stop="deleteMessage(message.id, handleLogout)"
@@ -153,7 +204,7 @@
             </div>
             
             <!-- 最终答案 -->
-            <ContentRenderer :content="getPlainText(message.content)" :is-streaming="message.isStreaming" />
+            <ContentRenderer :key="message.id + ':' + (message.isStreaming ? getPlainText(message.content).length : 'done')" :content="getPlainText(message.content)" :is-streaming="message.isStreaming" />
             
             <!-- 流式输出中指示 -->
             <span v-if="message.isStreaming" class="streaming-cursor">▊</span>
@@ -293,7 +344,8 @@ export default {
       userRole: localStorage.getItem('role') || 'user',
       showUserMenu: false,
       username: localStorage.getItem('username') || '用户',
-      roleDisplay: this.getRoleDisplay(localStorage.getItem('role') || 'user')
+      roleDisplay: this.getRoleDisplay(localStorage.getItem('role') || 'user'),
+      copyTipMessageId: null
     }
   },
   computed: {
@@ -437,6 +489,15 @@ export default {
       if (selector && !selector.contains(event.target)) {
         this.showModelDropdown = false;
       }
+    },
+
+    showCopyTip(messageId) {
+      this.copyTipMessageId = messageId
+      setTimeout(() => {
+        if (this.copyTipMessageId === messageId) {
+          this.copyTipMessageId = null
+        }
+      }, 1500)
     }
   },
   watch: {
@@ -452,6 +513,22 @@ export default {
     },
     newMessage() {
       this.$nextTick(() => this.autoResizeTextarea());
+    },
+    editingMessageId() {
+      if (this.editingMessageId) {
+        this.$nextTick(() => {
+          const ta = this.$refs.editTextareaRef
+          if (ta) {
+            // 可能是单个元素或数组（v-for 中）
+            const el = Array.isArray(ta) ? ta[ta.length - 1] : ta
+            if (el) {
+              el.style.height = 'auto'
+              el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+              el.focus()
+            }
+          }
+        })
+      }
     }
   }
 }
@@ -901,6 +978,115 @@ export default {
   color: #fca5a5;
   background: rgba(239, 68, 68, 0.15);
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+.copy-msg-btn:hover {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.copy-msg-btn.copied {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.edit-msg-btn:hover {
+  color: #fbbf24;
+  background: rgba(217, 119, 6, 0.15);
+  border-color: rgba(217, 119, 6, 0.3);
+}
+
+.copied-text {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 编辑模式样式 */
+.editing-bubble {
+  min-width: 280px;
+  max-width: 90% !important;
+}
+
+.edit-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  min-height: 36px;
+  max-height: 200px;
+  box-sizing: border-box;
+}
+
+.edit-textarea:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.15);
+}
+
+.edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.edit-hint {
+  font-size: 11px;
+  color: #64748b;
+  flex: 1;
+}
+
+.edit-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.edit-cancel-btn {
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.edit-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+}
+
+.edit-submit-btn {
+  padding: 5px 14px;
+  background: #d97706;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.edit-submit-btn:hover:not(:disabled) {
+  background: #b45309;
+}
+
+.edit-submit-btn:disabled,
+.edit-cancel-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .message-bubble.assistant {
