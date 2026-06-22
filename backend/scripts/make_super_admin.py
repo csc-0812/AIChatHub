@@ -47,7 +47,7 @@ def make_super_admin(username: str, password: str = None):
     # 创建用户数据（与 auth/services.py 中 create_user 字段一致）
     user_data = {
         "username": username,
-        "email": "",
+        "email": f"{username}@example.com",
         "full_name": "",
         "disabled": "False",
         "role": "super_admin",

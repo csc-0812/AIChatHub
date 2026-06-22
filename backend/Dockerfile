@@ -4,7 +4,7 @@
 # 构建上下文: 项目根目录
 # ============================================
 
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 WORKDIR /app
 
