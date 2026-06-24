@@ -1,5 +1,5 @@
 # ============================================
-# AIChatHub Docker Compose 配置
+# PlanAskDemo Docker Compose 配置
 # 一键启动: docker compose -f docker/docker-compose.yml up -d
 # ============================================
 name: planaskdemo
@@ -8,7 +8,7 @@ services:
   # ---- Redis 数据库 ----
   redis:
     image: redis:7-alpine
-    container_name: aichathub-redis
+    container_name: planaskdemo-redis
     restart: unless-stopped
     ports:
       - "9637:6379"
@@ -20,14 +20,14 @@ services:
       timeout: 3s
       retries: 5
     networks:
-      - aichathub-net
+      - planaskdemo-net
 
   # ---- FastAPI 后端 ----
   backend:
     build:
       context: ..
       dockerfile: ./backend/Dockerfile
-    container_name: aichathub-backend
+    container_name: planaskdemo-backend
     restart: unless-stopped
     ports:
       - "9660:8000"
@@ -42,31 +42,31 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       # JWT 密钥
-      - JWT_SECRET_KEY=aichathub-jwt-secret-k8x2mP9vQ4wR7yL1
+      - JWT_SECRET_KEY=planaskdemo-jwt-secret-k8x2mP9vQ4wR7yL1
     volumes:
       # 上传文件持久化
       - backend_uploads:/app/uploads
     networks:
-      - aichathub-net
+      - planaskdemo-net
 
   # ---- Vue 前端 + Nginx ----
   frontend:
     build:
       context: ..
       dockerfile: ./frontend/Dockerfile
-    container_name: aichathub-frontend
+    container_name: planaskdemo-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-9600}:80"
     depends_on:
       - backend
     networks:
-      - aichathub-net
+      - planaskdemo-net
 
 volumes:
   redis_data:
   backend_uploads:
 
 networks:
-  aichathub-net:
+  planaskdemo-net:
     driver: bridge
