@@ -22,19 +22,23 @@ from shared.utils.auth_utils import get_password_hash
 
 
 def make_super_admin(username: str, password: str = None):
-    """创建超级管理员或升级已有用户"""
+    """创建超级管理员、升级已有用户或重置密码"""
     user_key = f"user:{username}"
+    exists = redis_client.exists(user_key)
 
-    if redis_client.exists(user_key):
-        # 用户已存在，直接升级角色
+    if exists and not password:
+        # 已有用户且没提供密码：仅升级角色
         redis_client.hset(user_key, "role", "super_admin")
         role = redis_client.hget(user_key, "role")
         print(f"[成功] 用户 '{username}' 已升级为: {role}")
         return True
 
-    # 用户不存在，需要创建新用户
+    # 需要密码：新用户创建 或 已有用户重置密码
     if not password:
-        print(f"用户 '{username}' 不存在，需要创建新用户。")
+        if exists:
+            print(f"用户 '{username}' 已存在。")
+        else:
+            print(f"用户 '{username}' 不存在，需要创建新用户。")
         password = getpass.getpass("请输入密码: ")
         password_confirm = getpass.getpass("请再次输入密码: ")
         if password != password_confirm:
@@ -44,22 +48,25 @@ def make_super_admin(username: str, password: str = None):
             print("[错误] 密码不能为空")
             return False
 
-    # 创建用户数据（与 auth/services.py 中 create_user 字段一致）
-    user_data = {
-        "username": username,
-        "email": f"{username}@example.com",
-        "full_name": "",
-        "disabled": "False",
-        "role": "super_admin",
-        "hashed_password": get_password_hash(password),
-    }
+    # 更新角色和密码
+    redis_client.hset(user_key, "role", "super_admin")
+    redis_client.hset(user_key, "hashed_password", get_password_hash(password))
 
-    for key, value in user_data.items():
-        redis_client.hset(user_key, key, value)
+    if exists:
+        # 已有用户：保留其他字段不变
+        print(f"[成功] 用户 '{username}' 密码已重置，角色已升级为: super_admin")
+    else:
+        # 新用户：写入全部字段
+        user_data = {
+            "username": username,
+            "email": f"{username}@example.com",
+            "full_name": "",
+            "disabled": "False",
+        }
+        for key, value in user_data.items():
+            redis_client.hset(user_key, key, value)
+        print(f"[成功] 超级管理员 '{username}' 已创建，角色: super_admin")
 
-    # 验证创建结果
-    created_role = redis_client.hget(user_key, "role")
-    print(f"[成功] 超级管理员 '{username}' 已创建，角色: {created_role}")
     return True
 
 
@@ -75,7 +82,7 @@ if __name__ == "__main__":
     else:
         # 交互式模式
         username = input("请输入用户名: ").strip()
-        password_input = getpass.getpass("请输入密码（可选，已有用户可留空）: ").strip()
+        password_input = getpass.getpass("请输入密码（已有用户可重置密码，留空则仅升级角色）: ").strip()
         password = password_input if password_input else None
 
     if not username:
