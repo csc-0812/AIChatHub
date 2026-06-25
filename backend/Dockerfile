@@ -28,5 +28,5 @@ RUN mkdir -p uploads/documents uploads/images
 
 EXPOSE 8000
 
-# 启动 FastAPI 服务
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 启动 FastAPI 服务（--no-sync 避免容器启动时联网检查依赖）
+CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -91,8 +91,18 @@ docker save "$FRONTEND_IMAGE" -o "$TEMP_DIR/frontend.tar"
 
 # 复制部署所需文件
 echo "  → 复制部署配置文件..."
-cp "$COMPOSE_FILE" "$TEMP_DIR/docker-compose.yml"
 cp "config/config.yaml" "$TEMP_DIR/config.yaml"
+
+# 生成部署用 docker-compose.yml（将 build: 替换为 image:，避免重新构建）
+echo "  → 生成部署 compose 文件（去除 build 指令）..."
+awk '
+/^    build:$/                   { in_build=1; next }
+in_build && /^(      context|      dockerfile):/ { next }
+                                 { in_build=0 }
+/^    container_name: planaskdemo-backend$/  { print "    image: planaskdemo-backend" }
+/^    container_name: planaskdemo-frontend$/ { print "    image: planaskdemo-frontend" }
+                                 { print }
+' "$COMPOSE_FILE" > "$TEMP_DIR/docker-compose.yml"
 
 # 创建恢复说明
 cat > "$TEMP_DIR/README.txt" << 'EOF'
