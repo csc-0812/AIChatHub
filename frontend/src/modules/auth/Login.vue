@@ -14,6 +14,25 @@
         <label for="full_name">全名（选填）</label>
         <input type="text" id="full_name" v-model="form.full_name" />
       </div>
+      <!-- 验证码（仅注册模式） -->
+      <div v-if="isRegisterMode" class="form-group captcha-group">
+        <label for="captcha">验证码</label>
+        <div class="captcha-row">
+          <input
+            type="text"
+            id="captcha"
+            v-model="form.captcha"
+            placeholder="请输入验证码"
+            maxlength="4"
+            required
+            autocomplete="off"
+          />
+          <div class="captcha-display" @click="fetchCaptcha" :title="'点击刷新验证码'">
+            <span v-if="captchaLoading" class="captcha-loading">...</span>
+            <span v-else class="captcha-code">{{ captchaText }}</span>
+          </div>
+        </div>
+      </div>
       <div class="form-group">
         <label for="password">密码</label>
         <input type="password" id="password" v-model="form.password" required />
@@ -227,6 +246,64 @@ input:focus {
 
 .switch-mode a:hover {
   color: var(--brand-light);
+}
+
+/* 验证码样式 */
+.captcha-group .captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.captcha-group .captcha-row input {
+  flex: 1;
+  letter-spacing: 4px;
+  font-size: 18px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.captcha-display {
+  width: 100px;
+  height: 46px;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.captcha-display:hover {
+  border-color: var(--brand-glow);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.15);
+}
+
+.captcha-code {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 5px;
+  color: var(--brand);
+  font-family: 'Courier New', Courier, monospace;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.05);
+  transform: skewX(-5deg);
+}
+
+.captcha-loading {
+  font-size: 14px;
+  color: var(--text-muted);
+  animation: dotPulse 0.6s infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
 /* 成功提示 */

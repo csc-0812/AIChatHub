@@ -8,12 +8,31 @@ export function useAuth() {
     username: '',
     password: '',
     email: '',
-    full_name: ''
+    full_name: '',
+    captcha: ''
   })
   const loading = ref(false)
   const error = ref('')
   const showSuccess = ref(false)
   const successMessage = ref('')
+  // 验证码状态
+  const captchaId = ref('')
+  const captchaText = ref('')
+  const captchaLoading = ref(false)
+
+  // 获取验证码
+  async function fetchCaptcha() {
+    captchaLoading.value = true
+    try {
+      const data = await authApi.getCaptcha()
+      captchaId.value = data.captcha_id
+      captchaText.value = data.captcha_text
+    } catch (err) {
+      error.value = err.message
+    } finally {
+      captchaLoading.value = false
+    }
+  }
 
   // 登录
   async function login(onSuccess) {
@@ -54,23 +73,28 @@ export function useAuth() {
         form.value.username,
         form.value.password,
         form.value.email || undefined,
-        form.value.full_name || undefined
+        form.value.full_name || undefined,
+        captchaId.value,
+        form.value.captcha
       )
       console.log('注册成功:', data)
 
       // 显示成功提示，然后切换到登录模式
-      successMessage.value = '注册成功！请登录'
+      successMessage.value = data.message || '注册成功！请等待管理员启用后登录。'
       showSuccess.value = true
 
       setTimeout(() => {
         showSuccess.value = false
         switchToLogin()
-      }, 1500)
+      }, 2000)
 
       return data
     } catch (err) {
       error.value = err.message
       console.error('注册失败:', err)
+      // 注册失败时刷新验证码
+      fetchCaptcha()
+      form.value.captcha = ''
       throw err
     } finally {
       loading.value = false
@@ -81,6 +105,7 @@ export function useAuth() {
   function switchToRegister() {
     isRegisterMode.value = true
     resetForm()
+    fetchCaptcha()
   }
 
   // 切换到登录模式
@@ -95,7 +120,8 @@ export function useAuth() {
       username: '',
       password: '',
       email: '',
-      full_name: ''
+      full_name: '',
+      captcha: ''
     }
     error.value = ''
     showSuccess.value = false
@@ -109,9 +135,13 @@ export function useAuth() {
     error,
     showSuccess,
     successMessage,
+    captchaId,
+    captchaText,
+    captchaLoading,
     // 方法
     login,
     register,
+    fetchCaptcha,
     switchToRegister,
     switchToLogin,
     resetForm

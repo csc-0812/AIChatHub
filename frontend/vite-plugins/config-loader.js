@@ -42,7 +42,7 @@ function generateConfig() {
     
     // 提取前端配置
     const frontendConfig = {
-      api_base_url: config.frontend?.api_base_url || 'http://localhost:8000/api/v1',
+      api_base_url: config.frontend?.api_base_url || '/api/v1',
       app_name: config.app?.name || 'AI Chat'
     }
     
@@ -67,7 +67,7 @@ function generateConfig() {
  */
 function writeDefaultConfig() {
   const defaultConfig = {
-    api_base_url: 'http://localhost:8000/api/v1',
+    api_base_url: '/api/v1',
     app_name: 'AI Chat'
   }
   

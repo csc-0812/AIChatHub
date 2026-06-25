@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from typing import Optional, Dict, Any
-import hashlib
+import bcrypt
 import uuid
 from shared.utils.config_loader import config_loader
 
@@ -24,14 +24,13 @@ def _get_token_expire_minutes() -> int:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证密码"""
-    hashed = hashlib.sha256(plain_password.encode()).hexdigest()
-    return hashed == hashed_password
+    """验证密码（使用 bcrypt 自动加盐）"""
+    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
 
 def get_password_hash(password: str) -> str:
-    """获取密码哈希值"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """获取密码哈希值（使用 bcrypt 自动加盐）"""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:

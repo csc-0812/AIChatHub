@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from enum import Enum
 
@@ -11,13 +11,23 @@ class UserRole(str, Enum):
 
 
 class User(BaseModel):
-    """用户模型"""
+    """用户模型（内部使用，不做密码字段限制，兼容管理后台等渠道）"""
     username: str
     password: str
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     disabled: Optional[bool] = False
     role: UserRole = UserRole.USER  # 默认普通用户
+
+
+class RegisterRequest(BaseModel):
+    """注册请求模型（前端注册专用，有密码强度和验证码校验）"""
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=6, max_length=18, description="密码长度6-18位")
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    captcha_id: str = Field(..., description="验证码ID")
+    captcha_text: str = Field(..., description="验证码输入")
 
 
 class UserInDB(User):
@@ -58,3 +68,10 @@ class LoginResponse(BaseModel):
     token_type: str
     username: str
     role: UserRole
+
+
+class CaptchaResponse(BaseModel):
+    """验证码响应模型"""
+    captcha_id: str
+    captcha_text: str  # 验证码明文，前端展示用
+    message: str = "验证码获取成功"

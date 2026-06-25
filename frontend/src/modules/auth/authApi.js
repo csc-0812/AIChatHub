@@ -8,6 +8,58 @@ import { API_CONFIG } from '../../utils/config.js'
 const API_BASE_URL = API_CONFIG.API_BASE_URL
 
 /**
+ * 从 FastAPI 错误响应中提取可读的错误信息（中文）
+ * 兼容两种格式：
+ *   - HTTPException → detail 是字符串
+ *   - Pydantic 校验失败 (422) → detail 是数组
+ */
+
+function extractErrorMessage(errorData) {
+  if (!errorData) return '请求失败'
+  const detail = errorData.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map(err => {
+      const field = err.loc?.slice(-1)[0] || ''
+      return translatePydanticError(err.type, field, err.ctx, err.msg)
+    }).filter(Boolean).join('；')
+  }
+  return String(detail || '请求失败')
+}
+
+function translatePydanticError(type, field, ctx, rawMsg) {
+  const label = FIELD_LABELS[field] || field
+  switch (type) {
+    // 缺失字段
+    case 'missing':
+      return `请填写${label}`
+    // 字符串长度不足
+    case 'string_too_short':
+      return `${label}不能少于${ctx?.min_length || ''}位`
+    // 字符串过长
+    case 'string_too_long':
+      return `${label}不能超过${ctx?.max_length || ''}位`
+    // 类型或格式错误
+    case 'value_error':
+    case 'string_type':
+    case 'type_error':
+      return `${label}格式不正确`
+    // 默认兜底
+    default:
+      return rawMsg || `${label}校验不通过`
+  }
+}
+
+const FIELD_LABELS = {
+  password: '密码长度',
+  username: '用户名',
+  email: '邮箱',
+  full_name: '全名',
+  captcha_id: '验证码ID',
+  captcha_text: '验证码',
+}
+
+/**
  * 用户登录
  */
 export async function login(username, password) {
@@ -21,7 +73,7 @@ export async function login(username, password) {
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || '登录失败')
+    throw new Error(extractErrorMessage(error))
   }
 
   const data = await response.json()
@@ -47,7 +99,7 @@ export async function getCurrentUser() {
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || '获取用户信息失败')
+    throw new Error(extractErrorMessage(error))
   }
 
   return response.json()
@@ -79,18 +131,32 @@ export async function logout() {
 /**
  * 用户注册
  */
-export async function register(username, password, email, full_name) {
+export async function register(username, password, email, full_name, captcha_id, captcha_text) {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ username, password, email, full_name })
+    body: JSON.stringify({ username, password, email, full_name, captcha_id, captcha_text })
   })
 
   if (!response.ok) {
     const error = await response.json()
-    throw new Error(error.detail || '注册失败')
+    throw new Error(extractErrorMessage(error))
+  }
+
+  return response.json()
+}
+
+/**
+ * 获取验证码
+ */
+export async function getCaptcha() {
+  const response = await fetch(`${API_BASE_URL}/auth/captcha`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(extractErrorMessage(error))
   }
 
   return response.json()

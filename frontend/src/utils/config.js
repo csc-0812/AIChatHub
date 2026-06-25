@@ -5,7 +5,7 @@
 
 // 默认配置（用于初始化和fallback）
 const DEFAULT_CONFIG = {
-  BASE_URL: 'http://localhost:8000',
+  BASE_URL: '',
   API_PREFIX: '/api/v1',
   APP_NAME: 'AI Chat'
 }
@@ -31,11 +31,17 @@ export async function loadConfig() {
     if (response.ok) {
       const data = await response.json()
       
-      // 解析api_base_url
+      // 解析api_base_url（支持完整URL和相对路径）
       if (data.api_base_url) {
-        const urlObj = new URL(data.api_base_url)
-        currentConfig.BASE_URL = `${urlObj.protocol}//${urlObj.host}`
-        currentConfig.API_PREFIX = urlObj.pathname
+        if (data.api_base_url.startsWith('http://') || data.api_base_url.startsWith('https://')) {
+          const urlObj = new URL(data.api_base_url)
+          currentConfig.BASE_URL = `${urlObj.protocol}//${urlObj.host}`
+          currentConfig.API_PREFIX = urlObj.pathname
+        } else {
+          // 相对路径，如 "/api/v1"，通过 nginx 同源代理，无需跨域
+          currentConfig.BASE_URL = ''
+          currentConfig.API_PREFIX = data.api_base_url
+        }
       }
       
       if (data.app_name) {

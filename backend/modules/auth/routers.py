@@ -1,12 +1,49 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from .models import LoginRequest, LoginResponse, User, Token, UserRole
+from .models import LoginRequest, LoginResponse, User, UserRole, RegisterRequest, CaptchaResponse
 from .services import auth_service
 from shared.utils.auth_utils import decode_token
+from shared.utils.redis_client import redis_client
+import random
+import uuid
 from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+# 注册频率限制配置
+REGISTER_LIMIT_WINDOW = 60      # 时间窗口（秒）
+REGISTER_LIMIT_MAX = 3           # 窗口内最大注册次数
+# 验证码配置
+CAPTCHA_TTL = 300                # 验证码有效期（秒），5分钟
+CAPTCHA_LENGTH = 4               # 验证码长度
+
+
+def _get_client_ip(request: Request) -> str:
+    """获取客户端真实IP"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _generate_captcha_code() -> str:
+    """生成随机验证码（数字+大写字母，排除易混淆字符）"""
+    chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+    return "".join(random.choices(chars, k=CAPTCHA_LENGTH))
+
+
+@router.get("/captcha", response_model=CaptchaResponse)
+async def get_captcha():
+    """获取登录/注册验证码"""
+    captcha_id = str(uuid.uuid4())
+    captcha_text = _generate_captcha_code()
+    # 存入 Redis，设置过期时间
+    redis_client.set(f"captcha:{captcha_id}", captcha_text, expire=CAPTCHA_TTL)
+    return CaptchaResponse(
+        captcha_id=captcha_id,
+        captcha_text=captcha_text
+    )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -25,24 +62,51 @@ async def login(login_data: LoginRequest):
 
 
 @router.post("/register", response_model=dict)
-async def register(user: User):
-    """用户注册"""
-    # 检查用户是否已存在
+async def register(user: RegisterRequest, request: Request):
+    """用户注册（需验证码，注册后需管理员启用）"""
+    # 1. 注册频率限制
+    client_ip = _get_client_ip(request)
+    rate_key = f"register_limit:{client_ip}"
+    count = redis_client.incr(rate_key, expire=REGISTER_LIMIT_WINDOW)
+    if count > REGISTER_LIMIT_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail=f"注册频率过高，请{REGISTER_LIMIT_WINDOW}秒后再试"
+        )
+
+    # 2. 验证码校验
+    stored_captcha = redis_client.get(f"captcha:{user.captcha_id}")
+    if stored_captcha is None:
+        raise HTTPException(status_code=400, detail="验证码已过期，请重新获取")
+    if stored_captcha.upper() != user.captcha_text.strip().upper():
+        raise HTTPException(status_code=400, detail="验证码错误")
+    # 验证通过后删除验证码，防止重复使用
+    redis_client.delete(f"captcha:{user.captcha_id}")
+
+    # 3. 检查用户是否已存在
     existing_user = auth_service.get_user(user.username)
     if existing_user:
         raise HTTPException(status_code=400, detail="用户名已存在")
-    
-    # 强制设置为普通用户角色，防止通过注册接口提升权限
-    user.role = UserRole.USER
-    
-    # 创建新用户
-    created_user = auth_service.create_user(user)
+
+    # 4. 强制设置为普通用户角色，防止通过注册接口提升权限
+    new_user = User(
+        username=user.username,
+        password=user.password,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=True,          # 新注册用户初始为禁用状态
+        role=UserRole.USER
+    )
+
+    # 5. 创建新用户
+    created_user = auth_service.create_user(new_user)
     return {
         "username": created_user.username,
         "email": created_user.email,
         "full_name": created_user.full_name,
         "role": created_user.role.value,
-        "message": "注册成功"
+        "disabled": True,
+        "message": "注册成功！您的账户已创建，请等待管理员启用后登录使用。"
     }
 
 

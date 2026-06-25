@@ -48,6 +48,17 @@ class RedisClient:
         """删除哈希表字段"""
         return self.client.hdel(name, *keys)
 
+    def incr(self, key: str, expire: Optional[int] = None) -> int:
+        """自增键值（用于计数器），返回自增后的值，首次调用时设置过期时间"""
+        value = self.client.incr(key)
+        if expire and value == 1:
+            self.client.expire(key, expire)
+        return value
+
+    def ttl(self, key: str) -> int:
+        """获取键的剩余过期时间（秒），-1表示永不过期，-2表示不存在"""
+        return self.client.ttl(key)
+
 
 def _create_redis_client() -> RedisClient:
     """根据配置文件创建 Redis 客户端实例"""
