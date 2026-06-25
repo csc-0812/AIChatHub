@@ -8,6 +8,11 @@ FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 WORKDIR /app
 
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
+
 # 将包安装到系统 Python 环境（非虚拟环境）
 ENV UV_SYSTEM_PYTHON=1
 

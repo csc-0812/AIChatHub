@@ -12,8 +12,11 @@ services:
     restart: unless-stopped
     ports:
       - "9637:6379"
+    environment:
+      - TZ=Asia/Shanghai
     volumes:
       - redis_data:/data
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -35,6 +38,8 @@ services:
       redis:
         condition: service_healthy
     environment:
+      # 时区
+      - TZ=Asia/Shanghai
       # 配置文件路径（镜像内置）
       - CONFIG_PATH=/app/config/config.yaml
       # Redis 连接（指向 redis 容器）
@@ -58,6 +63,8 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-9600}:80"
+    environment:
+      - TZ=Asia/Shanghai
     depends_on:
       - backend
     networks:

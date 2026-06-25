@@ -6,6 +6,11 @@
 # ---- 构建阶段 ----
 FROM node:22-alpine AS build
 
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 WORKDIR /app
 
 # 复制前端依赖文件
@@ -26,6 +31,15 @@ RUN npm run build
 
 # ---- 运行阶段 ----
 FROM nginx:alpine
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
+
+# Nginx 默认清除环境变量，需要声明保留 TZ
+RUN sed -i '1i env TZ;' /etc/nginx/nginx.conf
 
 # 复制构建产物
 COPY --from=build /app/dist /usr/share/nginx/html
