@@ -1,4 +1,4 @@
-# AIChatHub
+# PlanAskDemo
 
 基于 **FastAPI + Vue 3** 的智能聊天应用，面向制造业「计划一体化平台」场景，提供数据查询、报表生成、结果推演和根因分析的 AI 助手能力。支持会话管理、流式响应、LangGraph 智能体协作、管理员功能和模型动态配置。
 
@@ -17,7 +17,7 @@
 ## 项目结构
 
 ```
-AIChatHub/
+PlanAskDemo/
 ├── backend/                    # 后端代码 (FastAPI + LangGraph)
 │   ├── api/v1/                 # API v1 路由聚合
 │   ├── modules/                # 业务模块
@@ -37,7 +37,9 @@ AIChatHub/
 │   │   └── utils/              # 工具类（Redis/JWT/LLM/配置）
 │   ├── scripts/                # 维护脚本
 │   ├── main.py                 # FastAPI 入口
-│   └── pyproject.toml          # Python 依赖（uv 管理）
+│   ├── Dockerfile              # 后端镜像构建
+│   ├── pyproject.toml          # Python 依赖（uv 管理）
+│   └── uv.lock                 # 依赖锁文件
 ├── frontend/                   # 前端代码 (Vue 3 + Vite)
 │   ├── src/
 │   │   ├── modules/            # 业务模块
@@ -50,23 +52,32 @@ AIChatHub/
 │   │   │   ├── ContentRenderer.vue    # 混合内容渲染
 │   │   │   └── ThemeToggle.vue        # 主题切换
 │   │   ├── themes/             # 主题配置
-│   │   │   └── theme.js               # CSS 变量主题定义
+│   │   │   ├── theme.js               # 主题切换逻辑
+│   │   │   └── variables.css          # CSS 变量（深色/浅色/琥珀三主题）
 │   │   ├── utils/              # 工具（SSE/配置/格式化/PDF）
 │   │   │   ├── sse.js                 # SSE 流处理
 │   │   │   ├── config.js             # 前端配置加载
 │   │   │   ├── format.js             # 格式化工具
 │   │   │   └── pdfExport.js          # PDF 导出
+│   │   ├── assets/             # 静态资源
 │   │   ├── App.vue             # 根组件
 │   │   └── main.js             # 入口
-│   ├── public/config.json      # 前端配置
+│   ├── vite-plugins/           # Vite 自定义插件
+│   │   └── config-loader.js          # 配置文件自动加载
+│   ├── public/
+│   │   ├── config.json               # 前端配置（构建时自动生成）
+│   │   ├── favicon.svg               # 站点图标
+│   │   └── icons.svg                 # SVG 图标集
+│   ├── nginx.conf              # Nginx 配置（API 代理 + SSE 支持）
+│   ├── Dockerfile              # 前端镜像构建
 │   └── package.json            # 依赖配置
 ├── config/
-│   └── config.yaml             # 全局配置（LLM/Redis/JWT）
+│   └── config.yaml             # 全局配置（LLM/Redis/JWT/CORS）
 ├── docker/
 │   └── docker-compose.yml      # Docker Compose 编排配置
 ├── scripts/
 │   ├── deploy.sh               # 一键部署脚本 (Linux/Mac/WSL)
-│   └── deploy.ps1              # 一键部署脚本 (Windows)
+│   └── build-image.sh          # 镜像构建 & 导出备份脚本
 └── docs/
     └── test-questions.md       # 测试问题集
 ```
@@ -110,7 +121,8 @@ AIChatHub/
 | Vite | 构建工具 |
 | Chart.js + vue-chartjs | 图表渲染（柱状图/饼图/折线图） |
 | markdown-it | Markdown 渲染 |
-| 原生 CSS | 样式（亮色/暗色双主题，CSS 变量驱动） |
+| html2canvas + jsPDF | PDF 导出 |
+| 原生 CSS | 样式（深色/浅色/琥珀三主题，CSS 变量驱动） |
 
 ## 快速开始
 
@@ -119,20 +131,19 @@ AIChatHub/
 无需安装 Python/Node/Redis，只需 Docker 即可启动全部服务。
 
 ```bash
-# Windows
-.\scripts\deploy.ps1
-
 # Linux / Mac / WSL
 bash scripts/deploy.sh
 ```
+
+> Windows 用户请在 WSL 中运行 `bash scripts/deploy.sh`。
 
 部署完成后：
 
 | 服务 | 地址 |
 |------|------|
-| 前端页面 | http://localhost:3000 |
-| 后端 API | http://localhost:8000 |
-| API 文档 | http://localhost:8000/docs |
+| 前端页面 | http://localhost:9600 |
+| 后端 API | http://localhost:9660 |
+| API 文档 | http://localhost:9660/docs |
 
 ```bash
 # 创建超级管理员（首次使用）
@@ -144,13 +155,13 @@ docker compose -f docker/docker-compose.yml down         # 停止服务
 docker compose -f docker/docker-compose.yml up -d --build  # 重新构建
 ```
 
-> 模型配置在系统内通过管理面板动态配置，无需在部署时设置 API Key。如需自定义前端端口，创建 `.env` 文件写入 `FRONTEND_PORT=8080` 即可。
+> 模型配置在系统内通过管理面板动态配置，无需在部署时设置 API Key。如需自定义端口，创建 `.env` 文件写入 `FRONTEND_PORT=8080` 即可。
 
 ### 方式二：本地开发启动
 
 #### 环境要求
 
-- Python 3.13+
+- Python 3.14+
 - Node.js 18+
 - Redis 服务器
 
@@ -166,6 +177,11 @@ cd AIChatHub
 编辑 `config/config.yaml`：
 
 ```yaml
+app:
+  name: "PlanAskDemo"
+  version: "1.0.0"
+  debug: false
+
 llm:
   openai:
     api_key: "your-api-key"            # 或设置环境变量 OPENAI_API_KEY
@@ -175,12 +191,20 @@ llm:
     max_tokens: 2048
 
 backend:
+  host: "0.0.0.0"
+  port: 8000
   database:
     host: "localhost"
     port: 6379
     password: null
   auth:
     secret_key: "your-secret-key"      # 或设置环境变量 JWT_SECRET_KEY
+  cors:
+    origins:
+      - "http://localhost:5174"
+
+frontend:
+  api_base_url: "/api/v1"
 ```
 
 > 支持通过环境变量覆盖配置：`OPENAI_API_KEY`、`JWT_SECRET_KEY`、`REDIS_HOST`、`REDIS_PORT`。
@@ -212,7 +236,7 @@ npm install
 npm run dev
 ```
 
-前端服务：http://localhost:5173
+前端服务：http://localhost:5174
 
 #### 5. 创建超级管理员（可选）
 
@@ -286,7 +310,7 @@ uv run python scripts/make_super_admin.py
 项目已内置完整的 Docker 部署方案，包含 Redis + 后端 + 前端三个服务，Nginx 反向代理统一入口。
 
 ```
-浏览器 → localhost:3000 (Nginx)
+浏览器 → localhost:9600 (Nginx)
               ├── /           → Vue 静态页面
               ├── /api/*      → 代理到 backend:8000
               └── /uploads/*  → 代理到 backend:8000
@@ -295,9 +319,6 @@ uv run python scripts/make_super_admin.py
 ### 一键部署
 
 ```bash
-# Windows
-.\scripts\deploy.ps1
-
 # Linux / Mac / WSL
 bash scripts/deploy.sh
 ```
@@ -320,11 +341,11 @@ docker compose -f docker/docker-compose.yml down
 | 文件 | 作用 |
 |------|------|
 | `docker/docker-compose.yml` | 服务编排配置 |
-| `backend/Dockerfile` | 后端镜像（Python 3.13 + uv） |
+| `backend/Dockerfile` | 后端镜像（Python 3.14 + uv） |
 | `frontend/Dockerfile` | 前端镜像（Node 构建 → Nginx 运行） |
 | `frontend/nginx.conf` | Nginx 配置（API 代理 + SSE 支持） |
 | `scripts/deploy.sh` | Linux/Mac/WSL 一键部署 |
-| `scripts/deploy.ps1` | Windows 一键部署 |
+| `scripts/build-image.sh` | 镜像构建 & 导出备份 |
 
 ## 开发计划
 

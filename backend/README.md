@@ -6,7 +6,9 @@
 
 ```
 backend/
-├── api/v1/__init__.py         # API v1 路由聚合
+├── api/
+│   ├── __init__.py
+│   └── v1/__init__.py         # API v1 路由聚合
 ├── modules/                   # 业务模块
 │   ├── auth/                  # 认证模块（注册/登录/JWT）
 │   │   ├── models.py          # 数据模型
@@ -47,7 +49,9 @@ backend/
 ├── uploads/                   # 上传文件目录
 ├── logs/                      # 日志目录
 ├── main.py                    # FastAPI 应用入口
-└── pyproject.toml             # Python 依赖配置
+├── Dockerfile                 # 后端镜像构建文件
+├── pyproject.toml             # Python 依赖配置
+└── uv.lock                    # 依赖版本锁定
 ```
 
 ## 功能特性
@@ -80,7 +84,7 @@ backend/
 
 ### 环境要求
 
-- Python 3.12+
+- Python 3.14+
 - Redis 服务器（默认端口 6379）
 
 ### 1. 配置
@@ -191,7 +195,16 @@ RouterAgent (LangGraph)
 
 ```bash
 # 在项目根目录执行
-docker compose up -d backend redis
+docker compose -f docker/docker-compose.yml up -d backend redis
+```
+
+后端 Dockerfile 基于 `ghcr.io/astral-sh/uv:python3.14-bookworm-slim` 镜像构建，使用 uv 管理依赖。
+
+### 单独构建后端镜像
+
+```bash
+cd backend
+docker build -t planaskdemo-backend .
 ```
 
 ## 开发说明
